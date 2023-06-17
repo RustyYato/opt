@@ -1,0 +1,15 @@
+[package]
+name = "context"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+init = { workspace = true }
+thin = { workspace = true }
+bumpalo = '3'
+thread_local = '1'
+
+hashbrown = '0.13'
+rustc-hash = '1'

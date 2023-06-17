@@ -1,0 +1,13 @@
+[workspace]
+
+resolver = '2'
+
+members = [
+    'context'
+]
+
+
+[workspace.dependencies]
+
+init = { git = 'https://github.com/RustyYato/init.git', branch = 'main' }
+thin = { git = 'https://github.com/RustyYato/init.git', branch = 'main' }
