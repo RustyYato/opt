@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use init::{
     layout_provider::{HasLayoutProvider, SizedLayoutProvider},
     Ctor,
@@ -7,55 +9,74 @@ use crate::ctx::AllocContext;
 
 use super::{
     raw_type::{TypeInfo, TypeTag},
-    Ty, Type,
+    Ty,
 };
+
+#[derive(Clone, Copy, Eq)]
+#[allow(non_camel_case_types)]
+struct u24(u8, u8, u8);
+
+impl u24 {
+    fn to_u32(self) -> u32 {
+        u32::from_ne_bytes([0, self.0, self.1, self.2])
+    }
+}
+
+impl PartialEq for u24 {
+    fn eq(&self, other: &Self) -> bool {
+        self.to_u32() == other.to_u32()
+    }
+}
+
+impl Hash for u24 {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.to_u32().hash(state)
+    }
+}
 
 #[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PointerInfo<'ctx> {
-    target_ty: Type<'ctx>,
+pub struct PointerInfo {
+    address_space: u24,
 }
 
-impl core::fmt::Debug for PointerInfo<'_> {
+impl core::fmt::Debug for PointerInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.target_ty.tag() {
-            TypeTag::Unit
-            | TypeTag::Integer
-            | TypeTag::Pointer
-            | TypeTag::Function
-            | TypeTag::Struct => {
-                write!(f, "*{:?}", self.target_ty)
-            }
-            TypeTag::Array => write!(f, "*({:?})", self.target_ty),
+        if self.address_space.to_u32() == 0 {
+            write!(f, "ptr")
+        } else {
+            write!(f, "ptr addressspace({})", self.address_space.to_u32())
         }
     }
 }
 
-pub type Pointer<'ctx> = Ty<'ctx, PointerInfo<'ctx>>;
+pub type Pointer<'ctx> = Ty<'ctx, PointerInfo>;
 
-unsafe impl TypeInfo for PointerInfo<'_> {
+unsafe impl TypeInfo for PointerInfo {
     const TAG: TypeTag = TypeTag::Pointer;
     type Flags = ();
 }
 
 impl<'ctx> Pointer<'ctx> {
     #[must_use]
-    pub(crate) fn create(ctx: AllocContext<'ctx>, target_ty: Type<'ctx>) -> Self {
-        Ty::create_in_place(ctx, target_ty, ())
+    pub(crate) fn create(ctx: AllocContext<'ctx>, address_space: u32) -> Self {
+        assert_eq!(address_space & 0xff000000, 0);
+        let [a, b, c, _] = u32::to_le_bytes(address_space);
+        Ty::create_in_place(ctx, u24(a, b, c), ())
     }
 
-    pub fn target(self) -> Type<'ctx> {
-        self.info().target_ty
+    pub fn address_space(self) -> u32 {
+        self.info().address_space.to_u32()
     }
 }
 
-impl<'ctx> Ctor<Type<'ctx>> for PointerInfo<'ctx> {
+impl Ctor<u24> for PointerInfo {
     #[inline]
-    fn init<'a>(uninit: init::Uninit<'a, Self>, target_ty: Type<'ctx>) -> init::Init<'a, Self> {
-        uninit.write(Self { target_ty })
+    fn init(uninit: init::Uninit<'_, Self>, address_space: u24) -> init::Init<'_, Self> {
+        uninit.write(Self { address_space })
     }
 }
 
-impl HasLayoutProvider<Type<'_>> for PointerInfo<'_> {
+impl HasLayoutProvider<u24> for PointerInfo {
     type LayoutProvider = SizedLayoutProvider;
 }

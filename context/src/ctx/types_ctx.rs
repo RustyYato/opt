@@ -21,8 +21,10 @@ pub(crate) struct TypeContextInfo<'ctx> {
     isize: types::Integer<'ctx>,
     iptr: types::Integer<'ctx>,
 
+    ptr: types::Pointer<'ctx>,
+
     int_cache: RefCell<FxHashMap<NonZeroU16, types::Integer<'ctx>>>,
-    ptr_cache: RefCell<FxHashMap<types::Type<'ctx>, types::Pointer<'ctx>>>,
+    ptr_cache: RefCell<FxHashMap<u32, types::Pointer<'ctx>>>,
 }
 
 #[repr(transparent)]
@@ -80,6 +82,8 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
             i128,
             isize: get(target.ptr_diff_bits),
             iptr: get(target.ptr_size_bits),
+
+            ptr: types::Pointer::create(alloc, 0),
 
             int_cache: RefCell::new(FxHashMap::default()),
             ptr_cache: RefCell::new(FxHashMap::default()),
@@ -142,26 +146,33 @@ impl<'ctx> TypeContext<'ctx> {
     }
 
     #[inline]
-    pub fn ptr(
-        self,
-        alloc: AllocContext<'ctx>,
-        target_ty: types::Type<'ctx>,
-    ) -> types::Pointer<'ctx> {
-        match self.info.ptr_cache.borrow_mut().entry(target_ty) {
-            hashbrown::hash_map::Entry::Occupied(entry) => *entry.get(),
-            hashbrown::hash_map::Entry::Vacant(entry) => self.create_ptr(alloc, entry, target_ty),
+    pub fn ptr(self) -> types::Pointer<'ctx> {
+        self.info.ptr
+    }
+
+    #[inline]
+    pub fn ptr_at(self, alloc: AllocContext<'ctx>, address_space: u32) -> types::Pointer<'ctx> {
+        if address_space == 0 {
+            self.info.ptr
+        } else {
+            match self.info.ptr_cache.borrow_mut().entry(address_space) {
+                hashbrown::hash_map::Entry::Occupied(entry) => *entry.get(),
+                hashbrown::hash_map::Entry::Vacant(entry) => {
+                    self.create_ptr_at(alloc, entry, address_space)
+                }
+            }
         }
     }
 
     #[cold]
     #[inline(never)]
-    fn create_ptr<S: std::hash::BuildHasher>(
+    fn create_ptr_at<S: std::hash::BuildHasher>(
         self,
         alloc: AllocContext<'ctx>,
-        entry: VacantEntry<types::Type<'ctx>, types::Pointer<'ctx>, S>,
-        target_ty: types::Type<'ctx>,
+        entry: VacantEntry<u32, types::Pointer<'ctx>, S>,
+        address_space: u32,
     ) -> types::Pointer<'ctx> {
-        *entry.insert(types::Pointer::create(alloc, target_ty))
+        *entry.insert(types::Pointer::create(alloc, address_space))
     }
 
     pub fn function<I: ExactSizeIterator<Item = types::Type<'ctx>>>(

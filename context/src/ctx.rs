@@ -91,11 +91,12 @@ impl<'ctx> Context<'ctx> {
         self.int(NonZeroU16::new(bits).unwrap())
     }
 
-    pub fn ptr(
-        self,
-        target_ty: impl Into<crate::types::Type<'ctx>>,
-    ) -> crate::types::Pointer<'ctx> {
-        self.ty().ptr(self.alloc(), target_ty.into())
+    pub fn ptr(self) -> crate::types::Pointer<'ctx> {
+        self.ty().ptr()
+    }
+
+    pub fn ptr_at(self, address_space: u32) -> crate::types::Pointer<'ctx> {
+        self.ty().ptr_at(self.alloc(), address_space)
     }
 
     pub fn function<I: IntoIterator>(
@@ -188,11 +189,12 @@ fn test() {
 
     Context::with(target, |ctx| {
         let _ = ctx.ty().unit();
-        assert_eq!(ctx.ptr(ctx.i8()), ctx.ptr(ctx.i8()));
+        assert_eq!(ctx.ptr(), ctx.ptr());
+        assert_eq!(ctx.int_lit(9), ctx.int_lit(9));
 
         assert_eq!(
-            ctx.function(ctx.ptr(ctx.iptr()), [ctx.unit()]),
-            ctx.function(ctx.ptr(ctx.i32()), [ctx.unit()]),
+            ctx.function(ctx.iptr(), [ctx.unit()]),
+            ctx.function(ctx.i32(), [ctx.unit()]),
         )
     });
 }
