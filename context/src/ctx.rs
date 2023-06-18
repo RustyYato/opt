@@ -81,6 +81,11 @@ impl<'ctx> Context<'ctx> {
         i128: Integer
         isize: Integer
         iptr: Integer
+
+        f16: Float
+        f32: Float
+        f64: Float
+
         ptr: Pointer
     }
 

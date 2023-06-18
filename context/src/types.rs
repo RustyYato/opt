@@ -1,6 +1,7 @@
 mod address_space;
 
 mod array;
+mod float;
 mod function;
 mod int;
 mod ptr;
@@ -11,6 +12,7 @@ mod unit;
 pub use address_space::AddressSpace;
 
 pub use array::Array;
+pub use float::{Float, FloatKind};
 pub use function::Function;
 pub use int::Integer;
 pub use ptr::Pointer;

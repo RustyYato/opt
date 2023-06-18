@@ -21,6 +21,10 @@ pub(crate) struct TypeContextInfo<'ctx> {
     isize: types::Integer<'ctx>,
     iptr: types::Integer<'ctx>,
 
+    f16: types::Float<'ctx>,
+    f32: types::Float<'ctx>,
+    f64: types::Float<'ctx>,
+
     ptr: types::Pointer<'ctx>,
 
     int_cache: RefCell<FxHashMap<NonZeroU16, types::Integer<'ctx>>>,
@@ -83,6 +87,10 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
             isize: get(target.ptr_diff_bits),
             iptr: get(target.ptr_size_bits),
 
+            f16: types::Float::create(alloc, types::FloatKind::Ieee16Bit),
+            f32: types::Float::create(alloc, types::FloatKind::Ieee32Bit),
+            f64: types::Float::create(alloc, types::FloatKind::Ieee64Bit),
+
             ptr: types::Pointer::create(alloc, types::AddressSpace::DEFAULT),
 
             int_cache: RefCell::new(FxHashMap::default()),
@@ -114,6 +122,12 @@ impl<'ctx> TypeContext<'ctx> {
         i128: Integer
         isize: Integer
         iptr: Integer
+
+        f16: Float
+        f32: Float
+        f64: Float
+
+        ptr: Pointer
     }
 
     #[inline]
@@ -143,11 +157,6 @@ impl<'ctx> TypeContext<'ctx> {
         bits: NonZeroU16,
     ) -> types::Integer<'ctx> {
         *entry.insert(types::Integer::create(alloc, bits))
-    }
-
-    #[inline]
-    pub fn ptr(self) -> types::Pointer<'ctx> {
-        self.info.ptr
     }
 
     #[inline]
