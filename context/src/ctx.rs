@@ -109,6 +109,14 @@ impl<'ctx> Context<'ctx> {
             arguments.into_iter().map(Into::into),
         )
     }
+
+    pub fn array(
+        self,
+        len: u64,
+        item_ty: impl Into<crate::types::Type<'ctx>>,
+    ) -> crate::types::Array<'ctx> {
+        self.ty().array(self.alloc(), len, item_ty.into())
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Target {
@@ -160,8 +168,8 @@ fn test() {
         assert_eq!(ctx.ptr(ctx.i8()), ctx.ptr(ctx.i8()));
 
         assert_eq!(
-            ctx.function(ctx.unit(), [ctx.i32()]),
-            ctx.function(ctx.ptr(ctx.i32()), [ctx.unit()]),
+            ctx.function(ctx.ptr(ctx.iptr()), [ctx.unit()]),
+            ctx.function(ctx.ptr(ctx.array(8, ctx.i32())), [ctx.unit()]),
         )
     });
 }

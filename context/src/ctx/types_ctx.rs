@@ -172,4 +172,13 @@ impl<'ctx> TypeContext<'ctx> {
     ) -> types::Function<'ctx> {
         types::Function::create(alloc, output_ty, arguments)
     }
+
+    pub fn array(
+        self,
+        alloc: AllocContext<'ctx>,
+        len: u64,
+        item_ty: types::Type<'ctx>,
+    ) -> types::Array<'ctx> {
+        types::Array::create(alloc, item_ty, len)
+    }
 }
