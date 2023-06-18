@@ -13,9 +13,15 @@ use super::{
 };
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IntegerInfo {
     pub bits: NonZeroU16,
+}
+
+impl core::fmt::Debug for IntegerInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "i{}", self.bits)
+    }
 }
 
 pub type Integer<'ctx> = Ty<'ctx, IntegerInfo>;

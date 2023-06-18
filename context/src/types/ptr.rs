@@ -11,9 +11,15 @@ use super::{
 };
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PointerInfo<'ctx> {
     target_ty: Type<'ctx>,
+}
+
+impl core::fmt::Debug for PointerInfo<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "*{:?}", self.target_ty)
+    }
 }
 
 pub type Pointer<'ctx> = Ty<'ctx, PointerInfo<'ctx>>;

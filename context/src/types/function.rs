@@ -15,10 +15,40 @@ use super::{
 
 #[repr(C)]
 #[non_exhaustive]
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct FunctionInfo<'ctx> {
     output_ty: Type<'ctx>,
     arguments_tys: [Type<'ctx>],
+}
+
+impl core::fmt::Debug for FunctionInfo<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        struct FmtArguments<'a, 'ctx>(&'a [Type<'ctx>]);
+
+        impl core::fmt::Debug for FmtArguments<'_, '_> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "fn(")?;
+                for (i, arg) in self.0.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?
+                    }
+                    write!(f, "{:?}", arg)?
+                }
+                write!(f, ")")
+            }
+        }
+
+        if self.output_ty.tag() == TypeTag::Unit {
+            write!(f, "{:?}", FmtArguments(&self.arguments_tys))
+        } else {
+            write!(
+                f,
+                "{:?} -> {:?}",
+                FmtArguments(&self.arguments_tys),
+                self.output_ty
+            )
+        }
+    }
 }
 
 pub type Function<'ctx> = Ty<'ctx, FunctionInfo<'ctx>>;

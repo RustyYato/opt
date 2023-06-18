@@ -10,8 +10,14 @@ use super::{
     Ty,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitInfo;
+
+impl core::fmt::Debug for UnitInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("unit")
+    }
+}
 
 pub type Unit<'ctx> = Ty<'ctx, UnitInfo>;
 

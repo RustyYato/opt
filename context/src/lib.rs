@@ -1,4 +1,4 @@
-#![feature(ptr_metadata)]
+#![feature(ptr_metadata, type_name_of_val)]
 
 mod ctx;
 

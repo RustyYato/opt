@@ -160,8 +160,8 @@ fn test() {
         assert_eq!(ctx.ptr(ctx.i8()), ctx.ptr(ctx.i8()));
 
         assert_eq!(
-            ctx.function(ctx.ty().unit(), [ctx.ty().i32()]),
-            ctx.function(ctx.ty().unit(), [ctx.ty().i32()]),
+            ctx.function(ctx.unit(), [ctx.i32()]),
+            ctx.function(ctx.ptr(ctx.i32()), [ctx.unit()]),
         )
     });
 }

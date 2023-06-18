@@ -13,7 +13,7 @@ use init::{
 use crate::ctx::{AllocContext, ContextRef};
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Type<'ctx, Tag = TypeTag> {
     data: NonNull<RawTypeInfoData<'ctx, Tag>>,
 }
@@ -36,6 +36,20 @@ impl<'ctx> Hash for Type<'ctx> {
     }
 }
 
+impl<'ctx> core::fmt::Debug for Type<'ctx> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let x = self.unpack();
+        let x: &dyn core::fmt::Debug = match &x {
+            UnpackedType::Unit(x) => x,
+            UnpackedType::Integer(x) => x,
+            UnpackedType::Pointer(x) => x,
+            UnpackedType::Function(x) => x,
+        };
+
+        core::fmt::Debug::fmt(x, f)
+    }
+}
+
 impl<'ctx, T: ?Sized + TypeInfo + PartialEq> PartialEq<Ty<'ctx, T>> for Type<'ctx> {
     fn eq(&self, other: &Ty<'ctx, T>) -> bool {
         self.try_cast() == Some(*other)
@@ -46,9 +60,14 @@ unsafe impl Send for Type<'_> {}
 unsafe impl Sync for Type<'_> {}
 
 #[repr(transparent)]
-#[derive(Debug)]
 pub struct Ty<'ctx, T: ?Sized> {
     data: &'ctx TypeInfoData<'ctx, T>,
+}
+
+impl<T: ?Sized + core::fmt::Debug> core::fmt::Debug for Ty<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.info().fmt(f)
+    }
 }
 
 impl<T: ?Sized> Copy for Ty<'_, T> {}
