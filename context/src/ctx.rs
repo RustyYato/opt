@@ -87,6 +87,10 @@ impl<'ctx> Context<'ctx> {
         self.ty().int(self.alloc(), bits)
     }
 
+    pub fn int_lit(self, bits: u16) -> crate::types::Integer<'ctx> {
+        self.int(NonZeroU16::new(bits).unwrap())
+    }
+
     pub fn ptr(
         self,
         target_ty: impl Into<crate::types::Type<'ctx>>,
@@ -117,7 +121,24 @@ impl<'ctx> Context<'ctx> {
     ) -> crate::types::Array<'ctx> {
         self.ty().array(self.alloc(), len, item_ty.into())
     }
+
+    pub fn struct_ty<I: IntoIterator>(
+        self,
+        name: impl crate::name::Name,
+        field_tys: I,
+    ) -> crate::types::Struct<'ctx>
+    where
+        I::Item: Into<crate::types::Type<'ctx>>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        self.ty().struct_ty(
+            self.alloc(),
+            name.to_name(),
+            field_tys.into_iter().map(Into::into),
+        )
+    }
 }
+
 #[derive(Debug, Clone)]
 pub struct Target {
     pub ptr_diff_bits: PtrBits,
@@ -169,7 +190,7 @@ fn test() {
 
         assert_eq!(
             ctx.function(ctx.ptr(ctx.iptr()), [ctx.unit()]),
-            ctx.function(ctx.ptr(ctx.array(8, ctx.i32())), [ctx.unit()]),
+            ctx.function(ctx.ptr(ctx.i32()), [ctx.unit()]),
         )
     });
 }

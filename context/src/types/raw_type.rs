@@ -33,6 +33,7 @@ impl<'ctx> Hash for Type<'ctx> {
             UnpackedType::Pointer(x) => x.hash(state),
             UnpackedType::Function(x) => x.hash(state),
             UnpackedType::Array(x) => x.hash(state),
+            UnpackedType::Struct(x) => x.hash(state),
         }
     }
 }
@@ -46,6 +47,7 @@ impl<'ctx> core::fmt::Debug for Type<'ctx> {
             UnpackedType::Pointer(x) => x,
             UnpackedType::Function(x) => x,
             UnpackedType::Array(x) => x,
+            UnpackedType::Struct(x) => x,
         };
 
         core::fmt::Debug::fmt(x, f)
@@ -85,7 +87,9 @@ impl<'ctx, T: ?Sized + TypeInfo + PartialEq> PartialEq for Ty<'ctx, T> {
         match T::TAG {
             TypeTag::Unit => true,
             TypeTag::Integer => core::ptr::eq(self.data, other.data),
-            TypeTag::Pointer | TypeTag::Function | TypeTag::Array => self.data == other.data,
+            TypeTag::Pointer | TypeTag::Function | TypeTag::Array | TypeTag::Struct => {
+                self.data == other.data
+            }
         }
     }
 }
@@ -95,7 +99,9 @@ impl<'ctx, T: ?Sized + TypeInfo + Hash> Hash for Ty<'ctx, T> {
         match T::TAG {
             TypeTag::Unit => (),
             TypeTag::Integer => core::ptr::hash(self.data, state),
-            TypeTag::Pointer | TypeTag::Function | TypeTag::Array => self.data.hash(state),
+            TypeTag::Pointer | TypeTag::Function | TypeTag::Array | TypeTag::Struct => {
+                self.data.hash(state)
+            }
         }
     }
 }
@@ -147,6 +153,7 @@ pub enum TypeTag {
     Pointer,
     Function,
     Array,
+    Struct,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -156,6 +163,7 @@ pub enum UnpackedType<'ctx> {
     Pointer(super::Pointer<'ctx>),
     Function(super::Function<'ctx>),
     Array(super::Array<'ctx>),
+    Struct(super::Struct<'ctx>),
 }
 
 /// # Safety
@@ -261,6 +269,7 @@ impl<'ctx> Type<'ctx> {
             TypeTag::Pointer => UnpackedType::Pointer(unsafe { self.cast_unchecked() }),
             TypeTag::Function => UnpackedType::Function(unsafe { self.cast_unchecked() }),
             TypeTag::Array => UnpackedType::Array(unsafe { self.cast_unchecked() }),
+            TypeTag::Struct => UnpackedType::Struct(unsafe { self.cast_unchecked() }),
         }
     }
 }

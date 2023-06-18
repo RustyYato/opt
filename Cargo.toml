@@ -11,3 +11,4 @@ members = [
 
 init = { git = 'https://github.com/RustyYato/init.git', branch = 'main' }
 thin = { git = 'https://github.com/RustyYato/init.git', branch = 'main' }
+istr = { git = 'https://github.com/RustyYato/istr.git', branch = 'main' }

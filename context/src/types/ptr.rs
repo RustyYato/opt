@@ -19,7 +19,11 @@ pub struct PointerInfo<'ctx> {
 impl core::fmt::Debug for PointerInfo<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.target_ty.tag() {
-            TypeTag::Unit | TypeTag::Integer | TypeTag::Pointer | TypeTag::Function => {
+            TypeTag::Unit
+            | TypeTag::Integer
+            | TypeTag::Pointer
+            | TypeTag::Function
+            | TypeTag::Struct => {
                 write!(f, "*{:?}", self.target_ty)
             }
             TypeTag::Array => write!(f, "*({:?})", self.target_ty),

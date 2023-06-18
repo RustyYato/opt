@@ -181,4 +181,13 @@ impl<'ctx> TypeContext<'ctx> {
     ) -> types::Array<'ctx> {
         types::Array::create(alloc, item_ty, len)
     }
+
+    pub fn struct_ty<I: ExactSizeIterator<Item = types::Type<'ctx>>>(
+        self,
+        alloc: AllocContext<'ctx>,
+        name: Option<istr::IStr>,
+        field_tys: I,
+    ) -> types::Struct<'ctx> {
+        types::Struct::create(alloc, name, field_tys)
+    }
 }

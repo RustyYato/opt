@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 init = { workspace = true }
+istr = { workspace = true }
 thin = { workspace = true }
 bumpalo = '3'
 thread_local = '1'
