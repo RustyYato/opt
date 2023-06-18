@@ -83,22 +83,27 @@ impl<'ctx> Context<'ctx> {
         iptr: Integer
     }
 
+    #[inline]
     pub fn int(self, bits: NonZeroU16) -> crate::types::Integer<'ctx> {
         self.ty().int(self.alloc(), bits)
     }
 
+    #[inline]
     pub fn int_lit(self, bits: u16) -> crate::types::Integer<'ctx> {
         self.int(NonZeroU16::new(bits).unwrap())
     }
 
+    #[inline]
     pub fn ptr(self) -> crate::types::Pointer<'ctx> {
         self.ty().ptr()
     }
 
+    #[inline]
     pub fn ptr_at(self, address_space: crate::types::AddressSpace) -> crate::types::Pointer<'ctx> {
         self.ty().ptr_at(self.alloc(), address_space)
     }
 
+    #[inline]
     pub fn function<I: IntoIterator>(
         self,
         output_ty: impl Into<crate::types::Type<'ctx>>,
@@ -115,6 +120,7 @@ impl<'ctx> Context<'ctx> {
         )
     }
 
+    #[inline]
     pub fn array(
         self,
         len: u64,
@@ -123,6 +129,7 @@ impl<'ctx> Context<'ctx> {
         self.ty().array(self.alloc(), len, item_ty.into())
     }
 
+    #[inline]
     pub fn struct_ty<I: IntoIterator>(
         self,
         name: impl crate::name::Name,
