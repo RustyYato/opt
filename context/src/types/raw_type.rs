@@ -113,6 +113,20 @@ impl<'ctx, T: ?Sized> From<Ty<'ctx, T>> for Type<'ctx> {
     }
 }
 
+impl<'ctx, T: ?Sized> From<&Ty<'ctx, T>> for Type<'ctx> {
+    #[inline]
+    fn from(value: &Ty<'ctx, T>) -> Self {
+        value.erase()
+    }
+}
+
+impl<'ctx> From<&Type<'ctx>> for Type<'ctx> {
+    #[inline]
+    fn from(value: &Type<'ctx>) -> Self {
+        *value
+    }
+}
+
 #[repr(C)]
 pub struct RawTypeInfoData<'ctx, Tag = TypeTag> {
     _ctx: ContextRef<'ctx>,
