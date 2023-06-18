@@ -10,7 +10,7 @@ use super::{
     Ty,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnitInfo;
 
 pub type Unit<'ctx> = Ty<'ctx, UnitInfo>;

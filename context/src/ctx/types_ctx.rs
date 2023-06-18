@@ -22,6 +22,7 @@ pub(crate) struct TypeContextInfo<'ctx> {
     iptr: types::Integer<'ctx>,
 
     int_cache: RefCell<FxHashMap<NonZeroU16, types::Integer<'ctx>>>,
+    ptr_cache: RefCell<FxHashMap<types::Type<'ctx>, types::Pointer<'ctx>>>,
 }
 
 #[repr(transparent)]
@@ -81,6 +82,7 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
             iptr: get(target.ptr_size_bits),
 
             int_cache: RefCell::new(FxHashMap::default()),
+            ptr_cache: RefCell::new(FxHashMap::default()),
         })
     }
 }
@@ -111,7 +113,7 @@ impl<'ctx> TypeContext<'ctx> {
     }
 
     #[inline]
-    pub(super) fn int(self, alloc: AllocContext<'ctx>, bits: NonZeroU16) -> types::Integer<'ctx> {
+    pub fn int(self, alloc: AllocContext<'ctx>, bits: NonZeroU16) -> types::Integer<'ctx> {
         match bits.get() {
             1 => return self.info.i1,
             8 => return self.info.i8,
@@ -137,5 +139,28 @@ impl<'ctx> TypeContext<'ctx> {
         bits: NonZeroU16,
     ) -> types::Integer<'ctx> {
         *entry.insert(types::Integer::create(alloc, bits))
+    }
+
+    #[inline]
+    pub fn ptr(
+        self,
+        alloc: AllocContext<'ctx>,
+        target_ty: types::Type<'ctx>,
+    ) -> types::Pointer<'ctx> {
+        match self.info.ptr_cache.borrow_mut().entry(target_ty) {
+            hashbrown::hash_map::Entry::Occupied(entry) => *entry.get(),
+            hashbrown::hash_map::Entry::Vacant(entry) => self.create_ptr(alloc, entry, target_ty),
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn create_ptr<S: std::hash::BuildHasher>(
+        self,
+        alloc: AllocContext<'ctx>,
+        entry: VacantEntry<types::Type<'ctx>, types::Pointer<'ctx>, S>,
+        target_ty: types::Type<'ctx>,
+    ) -> types::Pointer<'ctx> {
+        *entry.insert(types::Pointer::create(alloc, target_ty))
     }
 }

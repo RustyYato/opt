@@ -13,7 +13,7 @@ use super::{
 };
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct IntegerInfo {
     pub bits: NonZeroU16,
 }

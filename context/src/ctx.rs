@@ -8,7 +8,7 @@ pub use alloc_ctx::AllocContext;
 mod types_ctx;
 pub use types_ctx::TypeContext;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Invariant<'a>(PhantomData<fn() -> *mut &'a ()>);
 
 pub(crate) struct ContextInfo<'ctx> {
@@ -23,8 +23,14 @@ pub struct Context<'ctx> {
     pub(crate) info: &'ctx ContextInfo<'ctx>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct ContextRef<'a>(Invariant<'a>);
+
+impl core::fmt::Debug for ContextRef<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ContextRef")
+    }
+}
 
 impl<'ctx> Context<'ctx> {
     pub fn with<R>(target: Target, f: impl FnOnce(Context<'_>) -> R) -> R {
@@ -80,6 +86,13 @@ impl<'ctx> Context<'ctx> {
     pub fn int(self, bits: NonZeroU16) -> crate::types::Integer<'ctx> {
         self.ty().int(self.alloc(), bits)
     }
+
+    pub fn ptr(
+        self,
+        target_ty: impl Into<crate::types::Type<'ctx>>,
+    ) -> crate::types::Pointer<'ctx> {
+        self.ty().ptr(self.alloc(), target_ty.into())
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Target {
@@ -128,5 +141,6 @@ fn test() {
 
     Context::with(target, |ctx| {
         let _ = ctx.ty().unit();
+        assert_eq!(ctx.ptr(ctx.i8()), ctx.ptr(ctx.i8()));
     });
 }
