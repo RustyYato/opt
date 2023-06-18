@@ -1,3 +1,5 @@
+mod address_space;
+
 mod array;
 mod function;
 mod int;
@@ -5,6 +7,8 @@ mod ptr;
 mod raw_type;
 mod struct_ty;
 mod unit;
+
+pub use address_space::AddressSpace;
 
 pub use array::Array;
 pub use function::Function;

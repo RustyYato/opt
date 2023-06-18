@@ -95,7 +95,7 @@ impl<'ctx> Context<'ctx> {
         self.ty().ptr()
     }
 
-    pub fn ptr_at(self, address_space: u32) -> crate::types::Pointer<'ctx> {
+    pub fn ptr_at(self, address_space: crate::types::AddressSpace) -> crate::types::Pointer<'ctx> {
         self.ty().ptr_at(self.alloc(), address_space)
     }
 

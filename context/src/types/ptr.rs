@@ -8,44 +8,23 @@ use init::{
 use crate::ctx::AllocContext;
 
 use super::{
+    address_space::AddressSpace,
     raw_type::{TypeInfo, TypeTag},
     Ty,
 };
 
-#[derive(Clone, Copy, Eq)]
-#[allow(non_camel_case_types)]
-struct u24(u8, u8, u8);
-
-impl u24 {
-    fn to_u32(self) -> u32 {
-        u32::from_ne_bytes([0, self.0, self.1, self.2])
-    }
-}
-
-impl PartialEq for u24 {
-    fn eq(&self, other: &Self) -> bool {
-        self.to_u32() == other.to_u32()
-    }
-}
-
-impl Hash for u24 {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.to_u32().hash(state)
-    }
-}
-
 #[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PointerInfo {
-    address_space: u24,
+    address_space: AddressSpace,
 }
 
 impl core::fmt::Debug for PointerInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.address_space.to_u32() == 0 {
+        if self.address_space.is_default() {
             write!(f, "ptr")
         } else {
-            write!(f, "ptr addressspace({})", self.address_space.to_u32())
+            write!(f, "ptr addressspace({})", self.address_space.get())
         }
     }
 }
@@ -59,24 +38,22 @@ unsafe impl TypeInfo for PointerInfo {
 
 impl<'ctx> Pointer<'ctx> {
     #[must_use]
-    pub(crate) fn create(ctx: AllocContext<'ctx>, address_space: u32) -> Self {
-        assert_eq!(address_space & 0xff000000, 0);
-        let [a, b, c, _] = u32::to_le_bytes(address_space);
-        Ty::create_in_place(ctx, u24(a, b, c), ())
+    pub(crate) fn create(ctx: AllocContext<'ctx>, address_space: AddressSpace) -> Self {
+        Ty::create_in_place(ctx, address_space, ())
     }
 
-    pub fn address_space(self) -> u32 {
-        self.info().address_space.to_u32()
+    pub fn address_space(self) -> AddressSpace {
+        self.info().address_space
     }
 }
 
-impl Ctor<u24> for PointerInfo {
+impl Ctor<AddressSpace> for PointerInfo {
     #[inline]
-    fn init(uninit: init::Uninit<'_, Self>, address_space: u24) -> init::Init<'_, Self> {
+    fn init(uninit: init::Uninit<'_, Self>, address_space: AddressSpace) -> init::Init<'_, Self> {
         uninit.write(Self { address_space })
     }
 }
 
-impl HasLayoutProvider<u24> for PointerInfo {
+impl HasLayoutProvider<AddressSpace> for PointerInfo {
     type LayoutProvider = SizedLayoutProvider;
 }

@@ -24,7 +24,7 @@ pub(crate) struct TypeContextInfo<'ctx> {
     ptr: types::Pointer<'ctx>,
 
     int_cache: RefCell<FxHashMap<NonZeroU16, types::Integer<'ctx>>>,
-    ptr_cache: RefCell<FxHashMap<u32, types::Pointer<'ctx>>>,
+    ptr_cache: RefCell<FxHashMap<types::AddressSpace, types::Pointer<'ctx>>>,
 }
 
 #[repr(transparent)]
@@ -83,7 +83,7 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
             isize: get(target.ptr_diff_bits),
             iptr: get(target.ptr_size_bits),
 
-            ptr: types::Pointer::create(alloc, 0),
+            ptr: types::Pointer::create(alloc, types::AddressSpace::DEFAULT),
 
             int_cache: RefCell::new(FxHashMap::default()),
             ptr_cache: RefCell::new(FxHashMap::default()),
@@ -151,8 +151,12 @@ impl<'ctx> TypeContext<'ctx> {
     }
 
     #[inline]
-    pub fn ptr_at(self, alloc: AllocContext<'ctx>, address_space: u32) -> types::Pointer<'ctx> {
-        if address_space == 0 {
+    pub fn ptr_at(
+        self,
+        alloc: AllocContext<'ctx>,
+        address_space: types::AddressSpace,
+    ) -> types::Pointer<'ctx> {
+        if address_space.is_default() {
             self.info.ptr
         } else {
             match self.info.ptr_cache.borrow_mut().entry(address_space) {
@@ -169,8 +173,8 @@ impl<'ctx> TypeContext<'ctx> {
     fn create_ptr_at<S: std::hash::BuildHasher>(
         self,
         alloc: AllocContext<'ctx>,
-        entry: VacantEntry<u32, types::Pointer<'ctx>, S>,
-        address_space: u32,
+        entry: VacantEntry<types::AddressSpace, types::Pointer<'ctx>, S>,
+        address_space: types::AddressSpace,
     ) -> types::Pointer<'ctx> {
         *entry.insert(types::Pointer::create(alloc, address_space))
     }
