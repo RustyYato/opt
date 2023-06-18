@@ -163,4 +163,13 @@ impl<'ctx> TypeContext<'ctx> {
     ) -> types::Pointer<'ctx> {
         *entry.insert(types::Pointer::create(alloc, target_ty))
     }
+
+    pub fn function<I: ExactSizeIterator<Item = types::Type<'ctx>>>(
+        self,
+        alloc: AllocContext<'ctx>,
+        output_ty: types::Type<'ctx>,
+        arguments: I,
+    ) -> types::Function<'ctx> {
+        types::Function::create(alloc, output_ty, arguments)
+    }
 }

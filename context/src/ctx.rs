@@ -93,6 +93,22 @@ impl<'ctx> Context<'ctx> {
     ) -> crate::types::Pointer<'ctx> {
         self.ty().ptr(self.alloc(), target_ty.into())
     }
+
+    pub fn function<I: IntoIterator>(
+        self,
+        output_ty: impl Into<crate::types::Type<'ctx>>,
+        arguments: I,
+    ) -> crate::types::Function<'ctx>
+    where
+        I::Item: Into<crate::types::Type<'ctx>>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        self.ty().function(
+            self.alloc(),
+            output_ty.into(),
+            arguments.into_iter().map(Into::into),
+        )
+    }
 }
 #[derive(Debug, Clone)]
 pub struct Target {
@@ -142,5 +158,10 @@ fn test() {
     Context::with(target, |ctx| {
         let _ = ctx.ty().unit();
         assert_eq!(ctx.ptr(ctx.i8()), ctx.ptr(ctx.i8()));
+
+        assert_eq!(
+            ctx.function(ctx.ty().unit(), [ctx.ty().i32()]),
+            ctx.function(ctx.ty().unit(), [ctx.ty().i32()]),
+        )
     });
 }

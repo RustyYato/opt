@@ -31,6 +31,7 @@ impl<'ctx> Hash for Type<'ctx> {
             UnpackedType::Unit(x) => x.hash(state),
             UnpackedType::Integer(x) => x.hash(state),
             UnpackedType::Pointer(x) => x.hash(state),
+            UnpackedType::Function(x) => x.hash(state),
         }
     }
 }
@@ -63,7 +64,7 @@ impl<'ctx, T: ?Sized + TypeInfo + PartialEq> PartialEq for Ty<'ctx, T> {
         match T::TAG {
             TypeTag::Unit => true,
             TypeTag::Integer => core::ptr::eq(self.data, other.data),
-            TypeTag::Pointer => self.data == other.data,
+            TypeTag::Pointer | TypeTag::Function => self.data == other.data,
         }
     }
 }
@@ -73,7 +74,7 @@ impl<'ctx, T: ?Sized + TypeInfo + Hash> Hash for Ty<'ctx, T> {
         match T::TAG {
             TypeTag::Unit => (),
             TypeTag::Integer => core::ptr::hash(self.data, state),
-            TypeTag::Pointer => self.data.hash(state),
+            TypeTag::Pointer | TypeTag::Function => self.data.hash(state),
         }
     }
 }
@@ -123,6 +124,7 @@ pub enum TypeTag {
     Unit,
     Integer,
     Pointer,
+    Function,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -130,6 +132,7 @@ pub enum UnpackedType<'ctx> {
     Unit(super::Unit<'ctx>),
     Integer(super::Integer<'ctx>),
     Pointer(super::Pointer<'ctx>),
+    Function(super::Function<'ctx>),
 }
 
 /// # Safety
@@ -169,12 +172,12 @@ impl<'ctx, T: ?Sized> Ty<'ctx, T> {
     }
 
     #[inline]
-    pub fn tag(&self) -> TypeTag {
+    pub fn tag(self) -> TypeTag {
         self.data.type_tag
     }
 
     #[inline]
-    pub fn info(&self) -> &T {
+    pub fn info(self) -> &'ctx T {
         &self.data.info
     }
 }
@@ -233,6 +236,7 @@ impl<'ctx> Type<'ctx> {
             TypeTag::Unit => UnpackedType::Unit(unsafe { self.cast_unchecked() }),
             TypeTag::Integer => UnpackedType::Integer(unsafe { self.cast_unchecked() }),
             TypeTag::Pointer => UnpackedType::Pointer(unsafe { self.cast_unchecked() }),
+            TypeTag::Function => UnpackedType::Function(unsafe { self.cast_unchecked() }),
         }
     }
 }
@@ -289,5 +293,12 @@ where
                 }),
             }
         })
+    }
+}
+
+impl<'ctx, Tag> Ctor<Self> for Type<'ctx, Tag> {
+    #[inline]
+    fn init(uninit: init::Uninit<'_, Self>, args: Self) -> init::Init<'_, Self> {
+        uninit.write(args)
     }
 }

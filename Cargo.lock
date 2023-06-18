@@ -49,7 +49,7 @@ dependencies = [
 [[package]]
 name = "init"
 version = "0.1.0"
-source = "git+https://github.com/RustyYato/init.git?branch=main#0808d640b3306aeddd2e0dfa5b9de607dbb659ef"
+source = "git+https://github.com/RustyYato/init.git?branch=main#e4c3c1c25a649574f5e261f6483f0c549e606b4d"
 
 [[package]]
 name = "once_cell"
@@ -66,7 +66,7 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 [[package]]
 name = "thin"
 version = "0.1.0"
-source = "git+https://github.com/RustyYato/init.git?branch=main#0808d640b3306aeddd2e0dfa5b9de607dbb659ef"
+source = "git+https://github.com/RustyYato/init.git?branch=main#e4c3c1c25a649574f5e261f6483f0c549e606b4d"
 dependencies = [
  "init",
 ]
