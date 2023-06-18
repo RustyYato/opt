@@ -186,8 +186,9 @@ impl<'ctx> TypeContext<'ctx> {
         self,
         alloc: AllocContext<'ctx>,
         name: Option<istr::IStr>,
+        flags: types::StructFlags,
         field_tys: I,
     ) -> types::Struct<'ctx> {
-        types::Struct::create(alloc, name, field_tys)
+        types::Struct::create(alloc, name, flags, field_tys)
     }
 }

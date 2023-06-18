@@ -64,18 +64,18 @@ unsafe impl Send for Type<'_> {}
 unsafe impl Sync for Type<'_> {}
 
 #[repr(transparent)]
-pub struct Ty<'ctx, T: ?Sized> {
+pub struct Ty<'ctx, T: ?Sized + TypeInfo> {
     data: &'ctx TypeInfoData<'ctx, T>,
 }
 
-impl<T: ?Sized + core::fmt::Debug> core::fmt::Debug for Ty<'_, T> {
+impl<T: ?Sized + TypeInfo + core::fmt::Debug> core::fmt::Debug for Ty<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.info().fmt(f)
     }
 }
 
-impl<T: ?Sized> Copy for Ty<'_, T> {}
-impl<T: ?Sized> Clone for Ty<'_, T> {
+impl<T: ?Sized + TypeInfo> Copy for Ty<'_, T> {}
+impl<T: ?Sized + TypeInfo> Clone for Ty<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
@@ -106,14 +106,14 @@ impl<'ctx, T: ?Sized + TypeInfo + Hash> Hash for Ty<'ctx, T> {
     }
 }
 
-impl<'ctx, T: ?Sized> From<Ty<'ctx, T>> for Type<'ctx> {
+impl<'ctx, T: ?Sized + TypeInfo> From<Ty<'ctx, T>> for Type<'ctx> {
     #[inline]
     fn from(value: Ty<'ctx, T>) -> Self {
         value.erase()
     }
 }
 
-impl<'ctx, T: ?Sized> From<&Ty<'ctx, T>> for Type<'ctx> {
+impl<'ctx, T: ?Sized + TypeInfo> From<&Ty<'ctx, T>> for Type<'ctx> {
     #[inline]
     fn from(value: &Ty<'ctx, T>) -> Self {
         value.erase()
@@ -134,22 +134,24 @@ pub struct RawTypeInfoData<'ctx, Tag = TypeTag> {
 }
 
 #[repr(C)]
-pub struct TypeInfoDataHeader<'ctx, T: ?Sized> {
+pub struct TypeInfoDataHeader<'ctx, T: ?Sized, F = <T as TypeInfo>::Flags> {
     _ctx: ContextRef<'ctx>,
     type_tag: TypeTag,
+    flags: F,
     meta: <T as Pointee>::Metadata,
 }
 
 #[repr(C)]
 #[derive(PartialEq, Eq, Hash)]
-pub struct TypeInfoData<'ctx, T: ?Sized> {
+pub struct TypeInfoData<'ctx, T: ?Sized + TypeInfo> {
     _ctx: ContextRef<'ctx>,
     type_tag: TypeTag,
+    flags: T::Flags,
     meta: <Self as Pointee>::Metadata,
     info: T,
 }
 
-impl<T: ?Sized + core::fmt::Debug> core::fmt::Debug for TypeInfoData<'_, T> {
+impl<T: ?Sized + core::fmt::Debug + TypeInfo> core::fmt::Debug for TypeInfoData<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TypeInfoData")
             .field("_ctx", &self._ctx)
@@ -185,14 +187,19 @@ pub enum UnpackedType<'ctx> {
 /// This must be the only type with the given tag
 pub unsafe trait TypeInfo {
     const TAG: TypeTag;
+    type Flags: Copy + PartialEq + Hash;
 }
 
-impl<'ctx, T: ?Sized> Ty<'ctx, T> {
-    pub(crate) fn create_in_place<Args>(ctx: AllocContext<'ctx>, args: Args) -> Self
+impl<'ctx, T: ?Sized + TypeInfo> Ty<'ctx, T> {
+    pub(crate) fn create_in_place<Args>(
+        ctx: AllocContext<'ctx>,
+        args: Args,
+        flags: T::Flags,
+    ) -> Self
     where
-        T: TypeInfo + Ctor<Args> + HasLayoutProvider<Args>,
+        T: Ctor<Args> + HasLayoutProvider<Args>,
     {
-        match Self::try_create_in_place::<OfCtor<Args>>(ctx, of_ctor(args)) {
+        match Self::try_create_in_place::<OfCtor<Args>>(ctx, of_ctor(args), flags) {
             Ok(ty) => ty,
             Err(inf) => match inf {},
         }
@@ -201,12 +208,13 @@ impl<'ctx, T: ?Sized> Ty<'ctx, T> {
     pub(crate) fn try_create_in_place<Args>(
         ctx: AllocContext<'ctx>,
         args: Args,
+        flags: T::Flags,
     ) -> Result<Self, T::Error>
     where
-        T: TypeInfo + TryCtor<Args> + HasLayoutProvider<Args>,
+        T: TryCtor<Args> + HasLayoutProvider<Args>,
     {
         Ok(Self {
-            data: ctx.try_create_in_place(BuildTypeInfo(ctx.ctx_ref(), args))?,
+            data: ctx.try_create_in_place(BuildTypeInfo(ctx.ctx_ref(), args, flags))?,
         })
     }
 
@@ -222,17 +230,22 @@ impl<'ctx, T: ?Sized> Ty<'ctx, T> {
     }
 
     #[inline]
+    pub fn flags(self) -> T::Flags {
+        self.data.flags
+    }
+
+    #[inline]
     pub fn info(self) -> &'ctx T {
         &self.data.info
     }
 }
 
 impl<'ctx> Type<'ctx> {
-    unsafe fn metadata<T: ?Sized>(self) -> <TypeInfoData<'ctx, T> as Pointee>::Metadata {
+    unsafe fn metadata<T: ?Sized + TypeInfo>(self) -> <TypeInfoData<'ctx, T> as Pointee>::Metadata {
         let header = &*self
             .data
             .as_ptr()
-            .cast::<TypeInfoDataHeader<'ctx, TypeInfoData<T>>>();
+            .cast::<TypeInfoDataHeader<'ctx, TypeInfoData<T>, T::Flags>>();
         header.meta
     }
 
@@ -288,37 +301,43 @@ impl<'ctx> Type<'ctx> {
     }
 }
 
-struct BuildTypeInfo<'ctx, Args>(ContextRef<'ctx>, Args);
+struct BuildTypeInfo<'ctx, Args, F>(ContextRef<'ctx>, Args, F);
 
 struct BuildTypeInfoLayoutProvider;
 
-impl<'ctx, T: ?Sized + HasLayoutProvider<Args>, Args> HasLayoutProvider<BuildTypeInfo<'ctx, Args>>
-    for TypeInfoData<'ctx, T>
+impl<'ctx, T: ?Sized + TypeInfo + HasLayoutProvider<Args>, Args, F>
+    HasLayoutProvider<BuildTypeInfo<'ctx, Args, F>> for TypeInfoData<'ctx, T>
 {
     type LayoutProvider = BuildTypeInfoLayoutProvider;
 }
 
-unsafe impl<'ctx, T: ?Sized + HasLayoutProvider<Args>, Args>
-    LayoutProvider<TypeInfoData<'ctx, T>, BuildTypeInfo<'ctx, Args>>
+unsafe impl<'ctx, T: ?Sized + TypeInfo + HasLayoutProvider<Args>, Args, F>
+    LayoutProvider<TypeInfoData<'ctx, T>, BuildTypeInfo<'ctx, Args, F>>
     for BuildTypeInfoLayoutProvider
 {
-    fn layout_of(args: &BuildTypeInfo<'ctx, Args>) -> Option<std::alloc::Layout> {
-        let prefix = Layout::new::<RawTypeInfoData>();
+    fn layout_of(args: &BuildTypeInfo<'ctx, Args, F>) -> Option<std::alloc::Layout> {
         let meta = Layout::new::<<T as Pointee>::Metadata>();
-        let layout = init::layout_provider::layout_of::<T, Args>(&args.1)?;
-        Some(prefix.extend(meta).ok()?.0.extend(layout).ok()?.0)
+        let tag = Layout::new::<TypeTag>();
+        let flags = Layout::new::<RawTypeInfoData>();
+        let info_layout = init::layout_provider::layout_of::<T, Args>(&args.1)?;
+
+        let layout = tag.extend(flags).ok()?.0;
+        let layout = layout.extend(meta).ok()?.0;
+        let layout = layout.extend(info_layout).ok()?.0;
+
+        Some(layout)
     }
 
     unsafe fn cast(
         ptr: NonNull<u8>,
-        args: &BuildTypeInfo<'ctx, Args>,
+        args: &BuildTypeInfo<'ctx, Args, F>,
     ) -> NonNull<TypeInfoData<'ctx, T>> {
         let args = init::layout_provider::cast::<T, Args>(ptr, &args.1);
         NonNull::new_unchecked(args.as_ptr() as _)
     }
 }
 
-impl<'ctx, T, Args> TryCtor<BuildTypeInfo<'ctx, Args>> for TypeInfoData<'ctx, T>
+impl<'ctx, T, Args> TryCtor<BuildTypeInfo<'ctx, Args, T::Flags>> for TypeInfoData<'ctx, T>
 where
     T: ?Sized + TypeInfo + TryCtor<Args>,
 {
@@ -327,7 +346,7 @@ where
     #[inline]
     fn try_init<'a>(
         uninit: init::Uninit<'a, Self>,
-        BuildTypeInfo(ctx, args): BuildTypeInfo<'ctx, Args>,
+        BuildTypeInfo(ctx, args, flags): BuildTypeInfo<'ctx, Args, T::Flags>,
     ) -> Result<init::Init<'a, Self>, Self::Error> {
         let meta = core::ptr::metadata(uninit.as_ptr());
         Ok(init::try_init_struct! {
@@ -335,6 +354,7 @@ where
                 _ctx: init::try_ctor(|uninit| Ok(uninit.write(ctx))),
                 type_tag: init::try_ctor(|uninit| Ok(uninit.write(T::TAG))),
                 info: args,
+                flags: init::try_ctor(|uninit| Ok(uninit.write(flags))),
                 meta: init::try_ctor(|uninit| {
                     Ok(uninit.write(meta))
                 }),

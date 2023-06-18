@@ -125,6 +125,7 @@ impl<'ctx> Context<'ctx> {
     pub fn struct_ty<I: IntoIterator>(
         self,
         name: impl crate::name::Name,
+        flags: crate::types::StructFlags,
         field_tys: I,
     ) -> crate::types::Struct<'ctx>
     where
@@ -134,6 +135,7 @@ impl<'ctx> Context<'ctx> {
         self.ty().struct_ty(
             self.alloc(),
             name.to_name(),
+            flags,
             field_tys.into_iter().map(Into::into),
         )
     }

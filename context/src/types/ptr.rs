@@ -35,12 +35,13 @@ pub type Pointer<'ctx> = Ty<'ctx, PointerInfo<'ctx>>;
 
 unsafe impl TypeInfo for PointerInfo<'_> {
     const TAG: TypeTag = TypeTag::Pointer;
+    type Flags = ();
 }
 
 impl<'ctx> Pointer<'ctx> {
     #[must_use]
     pub(crate) fn create(ctx: AllocContext<'ctx>, target_ty: Type<'ctx>) -> Self {
-        Ty::create_in_place(ctx, target_ty)
+        Ty::create_in_place(ctx, target_ty, ())
     }
 
     pub fn target(self) -> Type<'ctx> {

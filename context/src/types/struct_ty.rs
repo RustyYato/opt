@@ -1,4 +1,7 @@
-use std::alloc::Layout;
+use std::{
+    alloc::Layout,
+    ops::{BitAnd, BitOr},
+};
 
 use init::{
     layout_provider::{HasLayoutProvider, LayoutProvider},
@@ -39,7 +42,7 @@ impl core::fmt::Debug for StructInfo<'_> {
         }
 
         if let Some(name) = self.name {
-            write!(f, "{name} ")?
+            write!(f, ".{name} ")?
         }
 
         write!(f, "{:?}", FmtFields(&self.field_tys))
@@ -50,13 +53,65 @@ pub type Struct<'ctx> = Ty<'ctx, StructInfo<'ctx>>;
 
 unsafe impl TypeInfo for StructInfo<'_> {
     const TAG: TypeTag = TypeTag::Struct;
+    type Flags = StructFlags;
+}
+
+#[repr(transparent)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StructFlags(u16);
+
+impl BitOr for StructFlags {
+    type Output = Self;
+
+    #[inline(always)]
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl BitAnd for StructFlags {
+    type Output = Self;
+
+    #[inline(always)]
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl StructFlags {
+    #[inline(always)]
+    pub fn any(self) -> bool {
+        self.0 != 0
+    }
+
+    pub fn packed(self) -> bool {
+        (self & Struct::PACKED).any()
+    }
+
+    pub fn opaque(self) -> bool {
+        (self & Struct::OPAQUE).any()
+    }
+
+    pub fn literal(self) -> bool {
+        (self & Struct::LITERAL).any()
+    }
+
+    pub fn sized(self) -> bool {
+        (self & Struct::SIZED).any()
+    }
 }
 
 impl<'ctx> Struct<'ctx> {
+    pub const PACKED: StructFlags = StructFlags(1 << 0);
+    pub const OPAQUE: StructFlags = StructFlags(1 << 1);
+    pub const LITERAL: StructFlags = StructFlags(1 << 2);
+    pub const SIZED: StructFlags = StructFlags(1 << 3);
+
     #[must_use]
     pub(crate) fn create<I: ExactSizeIterator<Item = Type<'ctx>>>(
         ctx: AllocContext<'ctx>,
         name: Option<istr::IStr>,
+        flags: StructFlags,
         arguments: I,
     ) -> Self {
         let args_len = arguments.len();
@@ -67,6 +122,7 @@ impl<'ctx> Struct<'ctx> {
                 args_len,
                 arguments,
             },
+            flags,
         ) {
             Ok(ty) => ty,
             Err(init::try_slice::IterInitError::NotEnoughItems) => {

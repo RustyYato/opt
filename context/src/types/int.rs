@@ -28,12 +28,13 @@ pub type Integer<'ctx> = Ty<'ctx, IntegerInfo>;
 
 unsafe impl TypeInfo for IntegerInfo {
     const TAG: TypeTag = TypeTag::Integer;
+    type Flags = ();
 }
 
 impl<'ctx> Integer<'ctx> {
     #[must_use]
     pub(crate) fn create(ctx: AllocContext<'ctx>, bits: NonZeroU16) -> Self {
-        Ty::create_in_place(ctx, bits)
+        Ty::create_in_place(ctx, bits, ())
     }
 
     #[inline]

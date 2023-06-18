@@ -55,6 +55,7 @@ pub type Function<'ctx> = Ty<'ctx, FunctionInfo<'ctx>>;
 
 unsafe impl TypeInfo for FunctionInfo<'_> {
     const TAG: TypeTag = TypeTag::Function;
+    type Flags = ();
 }
 
 impl<'ctx> Function<'ctx> {
@@ -72,6 +73,7 @@ impl<'ctx> Function<'ctx> {
                 args_len,
                 arguments,
             },
+            (),
         ) {
             Ok(ty) => ty,
             Err(init::try_slice::IterInitError::NotEnoughItems) => {

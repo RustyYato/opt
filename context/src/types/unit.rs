@@ -23,12 +23,13 @@ pub type Unit<'ctx> = Ty<'ctx, UnitInfo>;
 
 unsafe impl TypeInfo for UnitInfo {
     const TAG: TypeTag = TypeTag::Unit;
+    type Flags = ();
 }
 
 impl<'ctx> Unit<'ctx> {
     #[must_use]
     pub(crate) fn create(ctx: AllocContext<'ctx>) -> Self {
-        Ty::create_in_place(ctx, ())
+        Ty::create_in_place(ctx, (), ())
     }
 }
 
