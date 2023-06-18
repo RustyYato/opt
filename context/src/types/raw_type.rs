@@ -13,11 +13,12 @@ use init::{
 use crate::ctx::{AllocContext, ContextRef};
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, Eq)]
-pub struct Type<'ctx> {
-    data: NonNull<RawTypeInfoData<'ctx>>,
+#[derive(Debug, Clone, Copy)]
+pub struct Type<'ctx, Tag = TypeTag> {
+    data: NonNull<RawTypeInfoData<'ctx, Tag>>,
 }
 
+impl<'ctx> Eq for Type<'ctx> {}
 impl<'ctx> PartialEq for Type<'ctx> {
     fn eq(&self, other: &Self) -> bool {
         self.unpack() == other.unpack()
@@ -85,9 +86,9 @@ impl<'ctx, T: ?Sized> From<Ty<'ctx, T>> for Type<'ctx> {
 }
 
 #[repr(C)]
-pub struct RawTypeInfoData<'ctx> {
+pub struct RawTypeInfoData<'ctx, Tag = TypeTag> {
     _ctx: ContextRef<'ctx>,
-    type_tag: TypeTag,
+    type_tag: Tag,
 }
 
 #[repr(C)]
