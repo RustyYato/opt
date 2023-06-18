@@ -81,6 +81,7 @@ impl<'ctx> Context<'ctx> {
         i128: Integer
         isize: Integer
         iptr: Integer
+        ptr: Pointer
     }
 
     #[inline]
@@ -91,11 +92,6 @@ impl<'ctx> Context<'ctx> {
     #[inline]
     pub fn int_lit(self, bits: u16) -> crate::types::Integer<'ctx> {
         self.int(NonZeroU16::new(bits).unwrap())
-    }
-
-    #[inline]
-    pub fn ptr(self) -> crate::types::Pointer<'ctx> {
-        self.ty().ptr()
     }
 
     #[inline]
