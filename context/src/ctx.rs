@@ -9,7 +9,7 @@ mod types_ctx;
 pub use types_ctx::TypeContext;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-struct Invariant<'a>(PhantomData<fn() -> *mut &'a ()>);
+struct Invariant<'a>(PhantomData<*mut &'a ()>);
 
 pub(crate) struct ContextInfo<'ctx> {
     alloc: alloc_ctx::AllocContextInfo<'ctx>,
