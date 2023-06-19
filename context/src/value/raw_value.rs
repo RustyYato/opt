@@ -29,6 +29,7 @@ impl<'ctx> Hash for Value<'ctx> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self.unpack() {
             UnpackedValue::ConstAggrZero(x) => x.hash(state),
+            UnpackedValue::ConstInt(x) => x.hash(state),
         }
     }
 }
@@ -38,6 +39,7 @@ impl<'ctx> core::fmt::Debug for Value<'ctx> {
         let x = self.unpack();
         let x: &dyn core::fmt::Debug = match &x {
             UnpackedValue::ConstAggrZero(x) => x,
+            UnpackedValue::ConstInt(x) => x,
         };
 
         core::fmt::Debug::fmt(x, f)
@@ -77,6 +79,7 @@ impl<'ctx, T: ?Sized + ValueInfo + PartialEq> PartialEq for Val<'ctx, T> {
         self.ty() == other.ty()
             && match T::TAG {
                 ValueTag::ConstAggrZero => true,
+                ValueTag::ConstInt => self.info() == other.info(),
             }
     }
 }
@@ -86,6 +89,7 @@ impl<'ctx, T: ?Sized + ValueInfo + Hash> Hash for Val<'ctx, T> {
         self.ty().hash(state);
         match T::TAG {
             ValueTag::ConstAggrZero => (),
+            ValueTag::ConstInt => self.info().hash(state),
         }
     }
 }
@@ -149,11 +153,13 @@ impl<T: ?Sized + core::fmt::Debug + ValueInfo> core::fmt::Debug for ValueInfoDat
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ValueTag {
     ConstAggrZero,
+    ConstInt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnpackedValue<'ctx> {
     ConstAggrZero(super::ConstAggrZero<'ctx>),
+    ConstInt(super::ConstInt<'ctx>),
 }
 
 /// # Safety
@@ -283,6 +289,7 @@ impl<'ctx> Value<'ctx> {
             ValueTag::ConstAggrZero => {
                 UnpackedValue::ConstAggrZero(unsafe { self.cast_unchecked() })
             }
+            ValueTag::ConstInt => UnpackedValue::ConstInt(unsafe { self.cast_unchecked() }),
         }
     }
 }

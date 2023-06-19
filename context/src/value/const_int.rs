@@ -13,7 +13,7 @@ pub struct ConstIntInfo {}
 pub type ConstInt<'ctx> = super::Val<'ctx, ConstIntInfo>;
 
 unsafe impl super::ValueInfo for ConstIntInfo {
-    const TAG: super::ValueTag = super::ValueTag::ConstAggrZero;
+    const TAG: super::ValueTag = super::ValueTag::ConstInt;
     type Flags = ();
 }
 
