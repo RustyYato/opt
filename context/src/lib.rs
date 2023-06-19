@@ -1,3 +1,4 @@
+#![feature(rustc_attrs)]
 #![feature(ptr_metadata, type_name_of_val)]
 
 mod ctx;

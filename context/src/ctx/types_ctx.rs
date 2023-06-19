@@ -1,13 +1,13 @@
-use std::{cell::RefCell, num::NonZeroU16};
+use std::num::NonZeroU16;
 
-use hashbrown::{hash_map::VacantEntry, HashMap};
 use init::Ctor;
 
-use crate::{types, AllocContext};
+use crate::{
+    types::{self, TypeCache},
+    AllocContext,
+};
 
 use super::Target;
-
-type FxHashMap<K, V> = HashMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
 
 pub(crate) struct TypeContextInfo<'ctx> {
     unit: types::UnitTy<'ctx>,
@@ -27,8 +27,11 @@ pub(crate) struct TypeContextInfo<'ctx> {
 
     ptr: types::PointerTy<'ctx>,
 
-    int_cache: RefCell<FxHashMap<NonZeroU16, types::IntegerTy<'ctx>>>,
-    ptr_cache: RefCell<FxHashMap<types::AddressSpace, types::PointerTy<'ctx>>>,
+    int_cache: TypeCache<'ctx, types::IntegerInfo>,
+    ptr_cache: TypeCache<'ctx, types::PointerInfo>,
+    function_cache: TypeCache<'ctx, types::FunctionInfo<'ctx>>,
+    struct_cache: TypeCache<'ctx, types::StructInfo<'ctx>>,
+    array_cache: TypeCache<'ctx, types::ArrayInfo<'ctx>>,
 }
 
 #[repr(transparent)]
@@ -93,8 +96,11 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
 
             ptr: types::PointerTy::create(alloc, types::AddressSpace::DEFAULT),
 
-            int_cache: RefCell::new(FxHashMap::default()),
-            ptr_cache: RefCell::new(FxHashMap::default()),
+            int_cache: TypeCache::new(),
+            ptr_cache: TypeCache::new(),
+            function_cache: TypeCache::new(),
+            struct_cache: TypeCache::new(),
+            array_cache: TypeCache::new(),
         })
     }
 }
@@ -142,21 +148,7 @@ impl<'ctx> TypeContext<'ctx> {
             _ => (),
         }
 
-        match self.info.int_cache.borrow_mut().entry(bits) {
-            hashbrown::hash_map::Entry::Occupied(entry) => *entry.get(),
-            hashbrown::hash_map::Entry::Vacant(entry) => self.create_int(alloc, entry, bits),
-        }
-    }
-
-    #[cold]
-    #[inline(never)]
-    fn create_int<S: std::hash::BuildHasher>(
-        self,
-        alloc: AllocContext<'ctx>,
-        entry: VacantEntry<NonZeroU16, types::IntegerTy<'ctx>, S>,
-        bits: NonZeroU16,
-    ) -> types::IntegerTy<'ctx> {
-        *entry.insert(types::IntegerTy::create(alloc, bits))
+        self.info.int_cache.get_or_create(alloc, bits)
     }
 
     #[inline]
@@ -168,33 +160,23 @@ impl<'ctx> TypeContext<'ctx> {
         if address_space.is_default() {
             self.info.ptr
         } else {
-            match self.info.ptr_cache.borrow_mut().entry(address_space) {
-                hashbrown::hash_map::Entry::Occupied(entry) => *entry.get(),
-                hashbrown::hash_map::Entry::Vacant(entry) => {
-                    self.create_ptr_at(alloc, entry, address_space)
-                }
-            }
+            self.info.ptr_cache.get_or_create(alloc, address_space)
         }
     }
 
-    #[cold]
-    #[inline(never)]
-    fn create_ptr_at<S: std::hash::BuildHasher>(
-        self,
-        alloc: AllocContext<'ctx>,
-        entry: VacantEntry<types::AddressSpace, types::PointerTy<'ctx>, S>,
-        address_space: types::AddressSpace,
-    ) -> types::PointerTy<'ctx> {
-        *entry.insert(types::PointerTy::create(alloc, address_space))
-    }
-
-    pub fn function<I: ExactSizeIterator<Item = types::Type<'ctx>>>(
+    pub fn function(
         self,
         alloc: AllocContext<'ctx>,
         output_ty: types::Type<'ctx>,
-        arguments: I,
+        arguments: &[types::Type<'ctx>],
     ) -> types::FunctionTy<'ctx> {
-        types::FunctionTy::create(alloc, output_ty, arguments)
+        self.info.function_cache.get_or_create(
+            alloc,
+            types::FunctionInit {
+                output_ty,
+                arguments,
+            },
+        )
     }
 
     pub fn array(
@@ -203,16 +185,27 @@ impl<'ctx> TypeContext<'ctx> {
         len: u64,
         item_ty: types::Type<'ctx>,
     ) -> types::ArrayTy<'ctx> {
-        types::ArrayTy::create(alloc, item_ty, len)
+        self.info
+            .array_cache
+            .get_or_create(alloc, types::ArrayInit { len, item_ty })
     }
 
-    pub fn struct_ty<I: ExactSizeIterator<Item = types::Type<'ctx>>>(
+    pub fn struct_ty(
         self,
         alloc: AllocContext<'ctx>,
         name: Option<istr::IStr>,
         flags: types::StructFlags,
-        field_tys: I,
+        field_tys: &[types::Type<'ctx>],
     ) -> types::StructTy<'ctx> {
-        types::StructTy::create(alloc, name, flags, field_tys)
+        self.info.struct_cache.get_or_create(
+            alloc,
+            (
+                flags,
+                types::StructInit {
+                    name,
+                    fields: field_tys,
+                },
+            ),
+        )
     }
 }

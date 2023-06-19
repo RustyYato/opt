@@ -5,8 +5,7 @@ use std::{
 
 use init::{
     layout_provider::{HasLayoutProvider, LayoutProvider},
-    try_ctor::of_ctor,
-    TryCtor,
+    Ctor,
 };
 
 use crate::ctx::AllocContext;
@@ -51,9 +50,32 @@ impl core::fmt::Debug for StructInfo<'_> {
 
 pub type StructTy<'ctx> = Ty<'ctx, StructInfo<'ctx>>;
 
-unsafe impl TypeInfo for StructInfo<'_> {
+unsafe impl<'ctx> TypeInfo<'ctx> for StructInfo<'ctx> {
     const TAG: TypeTag = TypeTag::Struct;
     type Flags = StructFlags;
+
+    type Key<'a> = (Self::Flags, StructInit<'ctx, 'a>) where 'ctx: 'a;
+
+    #[inline]
+    fn key<'a>(&'ctx self, flags: Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a,
+    {
+        (
+            flags,
+            StructInit {
+                name: self.name,
+                fields: &self.field_tys,
+            },
+        )
+    }
+
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, (flags, key): Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a,
+    {
+        Ty::create_in_place(alloc, key, flags)
+    }
 }
 
 #[repr(transparent)]
@@ -107,35 +129,6 @@ impl<'ctx> StructTy<'ctx> {
     pub const LITERAL: StructFlags = StructFlags(1 << 2);
     pub const SIZED: StructFlags = StructFlags(1 << 3);
 
-    #[must_use]
-    pub(crate) fn create<I: ExactSizeIterator<Item = Type<'ctx>>>(
-        ctx: AllocContext<'ctx>,
-        name: Option<istr::IStr>,
-        flags: StructFlags,
-        arguments: I,
-    ) -> Self {
-        let args_len = arguments.len();
-        match Ty::try_create_in_place(
-            ctx,
-            StructInit {
-                name,
-                args_len,
-                arguments,
-            },
-            flags,
-        ) {
-            Ok(ty) => ty,
-            Err(init::try_slice::IterInitError::NotEnoughItems) => {
-                fn not_enough_items(args_len: usize) -> ! {
-                    panic!("Arguments iterator didn't produce {args_len} items")
-                }
-
-                not_enough_items(args_len)
-            }
-            Err(init::try_slice::IterInitError::InitError(inf)) => match inf {},
-        }
-    }
-
     #[inline]
     pub fn name(self) -> Option<istr::IStr> {
         self.info().name
@@ -147,41 +140,39 @@ impl<'ctx> StructTy<'ctx> {
     }
 }
 
-struct StructInit<I> {
-    name: Option<istr::IStr>,
-    args_len: usize,
-    arguments: I,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StructInit<'ctx, 'a> {
+    pub(crate) name: Option<istr::IStr>,
+    pub(crate) fields: &'a [Type<'ctx>],
 }
 
-impl<'ctx, I: Iterator<Item = Type<'ctx>>> TryCtor<StructInit<I>> for StructInfo<'ctx> {
-    type Error = init::try_slice::IterInitError<core::convert::Infallible>;
-
-    fn try_init(
-        uninit: init::Uninit<'_, Self>,
-        args: StructInit<I>,
-    ) -> Result<init::Init<'_, Self>, Self::Error> {
-        Ok(init::try_init_struct! {
+impl<'ctx> Ctor<StructInit<'ctx, '_>> for StructInfo<'ctx> {
+    fn init<'a>(
+        uninit: init::Uninit<'a, Self>,
+        args: StructInit<'ctx, '_>,
+    ) -> init::Init<'a, Self> {
+        init::init_struct! {
             uninit => Self {
-                name: init::try_ctor(|uninit| Ok(uninit.write(args.name))),
-                field_tys: init::try_slice::IterInit(args.arguments.map(of_ctor))
+                name: init::ctor(|uninit| uninit.write(args.name)),
+                field_tys: args.fields
             }
-        })
+        }
     }
 }
 
-impl<'ctx, I> HasLayoutProvider<StructInit<I>> for StructInfo<'ctx> {
+impl<'ctx> HasLayoutProvider<StructInit<'ctx, '_>> for StructInfo<'ctx> {
     type LayoutProvider = FunctionInfoLayoutProvider;
 }
 
-struct FunctionInfoLayoutProvider;
+pub struct FunctionInfoLayoutProvider;
 
-unsafe impl<'ctx, I> LayoutProvider<StructInfo<'ctx>, StructInit<I>>
+unsafe impl<'ctx> LayoutProvider<StructInfo<'ctx>, StructInit<'ctx, '_>>
     for FunctionInfoLayoutProvider
 {
-    fn layout_of(args: &StructInit<I>) -> Option<std::alloc::Layout> {
+    fn layout_of(args: &StructInit<'ctx, '_>) -> Option<std::alloc::Layout> {
         Some(
             Layout::new::<Option<istr::IStr>>()
-                .extend(Layout::array::<Type>(args.args_len).ok()?)
+                .extend(Layout::array::<Type>(args.fields.len()).ok()?)
                 .ok()?
                 .0,
         )
@@ -189,8 +180,8 @@ unsafe impl<'ctx, I> LayoutProvider<StructInfo<'ctx>, StructInit<I>>
 
     unsafe fn cast(
         ptr: std::ptr::NonNull<u8>,
-        args: &StructInit<I>,
+        args: &StructInit<'ctx, '_>,
     ) -> std::ptr::NonNull<StructInfo<'ctx>> {
-        std::ptr::NonNull::from_raw_parts(ptr.cast(), args.args_len)
+        std::ptr::NonNull::from_raw_parts(ptr.cast(), args.fields.len())
     }
 }

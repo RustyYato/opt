@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{
     alloc::Layout,
     hash::Hash,
@@ -5,6 +6,7 @@ use std::{
 };
 
 use init::{
+    ctor::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
     try_ctor::{of_ctor, OfCtor},
     Ctor, TryCtor,
@@ -13,35 +15,34 @@ use init::{
 use crate::ctx::{AllocContext, ContextRef};
 
 #[repr(transparent)]
-#[derive(Clone, Copy)]
 pub struct Type<'ctx, Tag = TypeTag> {
     data: NonNull<RawTypeInfoData<'ctx, Tag>>,
+}
+
+impl<'ctx, Tag> Copy for Type<'ctx, Tag> {}
+impl<'ctx, Tag> Clone for Type<'ctx, Tag> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 impl<'ctx> Eq for Type<'ctx> {}
 impl<'ctx> PartialEq for Type<'ctx> {
     fn eq(&self, other: &Self) -> bool {
-        self.unpack() == other.unpack()
+        self.data == other.data
     }
 }
 
 impl<'ctx> Hash for Type<'ctx> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match self.unpack() {
-            UnpackedType::Unit(x) => x.hash(state),
-            UnpackedType::Integer(x) => x.hash(state),
-            UnpackedType::Pointer(x) => x.hash(state),
-            UnpackedType::Function(x) => x.hash(state),
-            UnpackedType::Array(x) => x.hash(state),
-            UnpackedType::Struct(x) => x.hash(state),
-        }
+        core::ptr::hash(self.data.as_ptr(), state)
     }
 }
 
-impl<'ctx> core::fmt::Debug for Type<'ctx> {
+impl<'ctx> fmt::Debug for Type<'ctx> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let x = self.unpack();
-        let x: &dyn core::fmt::Debug = match &x {
+        let x: &dyn fmt::Debug = match &x {
             UnpackedType::Unit(x) => x,
             UnpackedType::Integer(x) => x,
             UnpackedType::Pointer(x) => x,
@@ -50,13 +51,13 @@ impl<'ctx> core::fmt::Debug for Type<'ctx> {
             UnpackedType::Struct(x) => x,
         };
 
-        core::fmt::Debug::fmt(x, f)
+        fmt::Debug::fmt(x, f)
     }
 }
 
-impl<'ctx, T: ?Sized + TypeInfo + PartialEq> PartialEq<Ty<'ctx, T>> for Type<'ctx> {
+impl<'ctx, T: ?Sized + TypeInfo<'ctx> + PartialEq> PartialEq<Ty<'ctx, T>> for Type<'ctx> {
     fn eq(&self, other: &Ty<'ctx, T>) -> bool {
-        self.try_cast() == Some(*other)
+        *self == other.erase()
     }
 }
 
@@ -64,25 +65,31 @@ unsafe impl Send for Type<'_> {}
 unsafe impl Sync for Type<'_> {}
 
 #[repr(transparent)]
-pub struct Ty<'ctx, T: ?Sized + TypeInfo> {
+pub struct Ty<'ctx, T: ?Sized + TypeInfo<'ctx>> {
     data: &'ctx TypeInfoData<'ctx, T>,
 }
 
-impl<T: ?Sized + TypeInfo + core::fmt::Debug> core::fmt::Debug for Ty<'_, T> {
+impl<'ctx, T> fmt::Debug for Ty<'ctx, T>
+where
+    T: ?Sized + TypeInfo<'ctx> + fmt::Debug,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.info().fmt(f)
     }
 }
 
-impl<T: ?Sized + TypeInfo> Copy for Ty<'_, T> {}
-impl<T: ?Sized + TypeInfo> Clone for Ty<'_, T> {
+impl<'ctx, T> Copy for Ty<'ctx, T> where T: ?Sized + TypeInfo<'ctx> {}
+impl<'ctx, T> Clone for Ty<'ctx, T>
+where
+    T: ?Sized + TypeInfo<'ctx>,
+{
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'ctx, T: ?Sized + TypeInfo + Eq> Eq for Ty<'ctx, T> {}
-impl<'ctx, T: ?Sized + TypeInfo + PartialEq> PartialEq for Ty<'ctx, T> {
+impl<'ctx, T: ?Sized + TypeInfo<'ctx> + Eq> Eq for Ty<'ctx, T> {}
+impl<'ctx, T: ?Sized + TypeInfo<'ctx> + PartialEq> PartialEq for Ty<'ctx, T> {
     fn eq(&self, other: &Self) -> bool {
         match T::TAG {
             TypeTag::Unit => true,
@@ -94,7 +101,7 @@ impl<'ctx, T: ?Sized + TypeInfo + PartialEq> PartialEq for Ty<'ctx, T> {
     }
 }
 
-impl<'ctx, T: ?Sized + TypeInfo + Hash> Hash for Ty<'ctx, T> {
+impl<'ctx, T: ?Sized + TypeInfo<'ctx> + Hash> Hash for Ty<'ctx, T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match T::TAG {
             TypeTag::Unit => (),
@@ -106,14 +113,14 @@ impl<'ctx, T: ?Sized + TypeInfo + Hash> Hash for Ty<'ctx, T> {
     }
 }
 
-impl<'ctx, T: ?Sized + TypeInfo> From<Ty<'ctx, T>> for Type<'ctx> {
+impl<'ctx, T: ?Sized + TypeInfo<'ctx>> From<Ty<'ctx, T>> for Type<'ctx> {
     #[inline]
     fn from(value: Ty<'ctx, T>) -> Self {
         value.erase()
     }
 }
 
-impl<'ctx, T: ?Sized + TypeInfo> From<&Ty<'ctx, T>> for Type<'ctx> {
+impl<'ctx, T: ?Sized + TypeInfo<'ctx>> From<&Ty<'ctx, T>> for Type<'ctx> {
     #[inline]
     fn from(value: &Ty<'ctx, T>) -> Self {
         value.erase()
@@ -134,7 +141,7 @@ pub struct RawTypeInfoData<'ctx, Tag = TypeTag> {
 }
 
 #[repr(C)]
-pub struct TypeInfoDataHeader<'ctx, T: ?Sized, F = <T as TypeInfo>::Flags> {
+pub struct TypeInfoDataHeader<'ctx, T: ?Sized, F = <T as TypeInfo<'ctx>>::Flags> {
     _ctx: ContextRef<'ctx>,
     type_tag: TypeTag,
     flags: F,
@@ -143,7 +150,7 @@ pub struct TypeInfoDataHeader<'ctx, T: ?Sized, F = <T as TypeInfo>::Flags> {
 
 #[repr(C)]
 #[derive(PartialEq, Eq, Hash)]
-pub struct TypeInfoData<'ctx, T: ?Sized + TypeInfo> {
+pub struct TypeInfoData<'ctx, T: ?Sized + TypeInfo<'ctx>> {
     _ctx: ContextRef<'ctx>,
     type_tag: TypeTag,
     flags: T::Flags,
@@ -151,7 +158,10 @@ pub struct TypeInfoData<'ctx, T: ?Sized + TypeInfo> {
     info: T,
 }
 
-impl<T: ?Sized + core::fmt::Debug + TypeInfo> core::fmt::Debug for TypeInfoData<'_, T> {
+impl<'ctx, T> fmt::Debug for TypeInfoData<'ctx, T>
+where
+    T: ?Sized + fmt::Debug + TypeInfo<'ctx>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TypeInfoData")
             .field("_ctx", &self._ctx)
@@ -185,12 +195,24 @@ pub enum UnpackedType<'ctx> {
 /// # Safety
 ///
 /// This must be the only type with the given tag
-pub unsafe trait TypeInfo {
+pub unsafe trait TypeInfo<'ctx> {
     const TAG: TypeTag;
     type Flags: Copy + PartialEq + Hash;
+
+    type Key<'a>: Copy + Hash + Eq
+    where
+        'ctx: 'a;
+
+    fn key<'a>(&'ctx self, flags: Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a;
+
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, key: Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a;
 }
 
-impl<'ctx, T: ?Sized + TypeInfo> Ty<'ctx, T> {
+impl<'ctx, T: ?Sized + TypeInfo<'ctx>> Ty<'ctx, T> {
     pub(crate) fn create_in_place<Args>(
         ctx: AllocContext<'ctx>,
         args: Args,
@@ -241,7 +263,9 @@ impl<'ctx, T: ?Sized + TypeInfo> Ty<'ctx, T> {
 }
 
 impl<'ctx> Type<'ctx> {
-    unsafe fn metadata<T: ?Sized + TypeInfo>(self) -> <TypeInfoData<'ctx, T> as Pointee>::Metadata {
+    unsafe fn metadata<T: ?Sized + TypeInfo<'ctx>>(
+        self,
+    ) -> <TypeInfoData<'ctx, T> as Pointee>::Metadata {
         let header = &*self
             .data
             .as_ptr()
@@ -254,7 +278,7 @@ impl<'ctx> Type<'ctx> {
         unsafe { self.data.as_ref().type_tag }
     }
 
-    pub fn cast<T: ?Sized + TypeInfo>(self) -> Ty<'ctx, T> {
+    pub fn cast<T: ?Sized + TypeInfo<'ctx>>(self) -> Ty<'ctx, T> {
         #[cold]
         #[inline(never)]
         fn failed_cast(found: TypeTag, expected: TypeTag) -> ! {
@@ -270,7 +294,7 @@ impl<'ctx> Type<'ctx> {
     /// # Safety
     ///
     /// This type must have the tag `T::TAG`
-    pub unsafe fn cast_unchecked<T: ?Sized + TypeInfo>(self) -> Ty<'ctx, T> {
+    pub unsafe fn cast_unchecked<T: ?Sized + TypeInfo<'ctx>>(self) -> Ty<'ctx, T> {
         debug_assert_eq!(self.tag(), T::TAG);
 
         let metadata = unsafe { self.metadata::<T>() };
@@ -281,7 +305,7 @@ impl<'ctx> Type<'ctx> {
         }
     }
 
-    pub fn try_cast<T: ?Sized + TypeInfo>(self) -> Option<Ty<'ctx, T>> {
+    pub fn try_cast<T: ?Sized + TypeInfo<'ctx>>(self) -> Option<Ty<'ctx, T>> {
         if self.tag() == T::TAG {
             Some(unsafe { self.cast_unchecked() })
         } else {
@@ -305,13 +329,13 @@ struct BuildTypeInfo<'ctx, Args, F>(ContextRef<'ctx>, Args, F);
 
 struct BuildTypeInfoLayoutProvider;
 
-impl<'ctx, T: ?Sized + TypeInfo + HasLayoutProvider<Args>, Args, F>
+impl<'ctx, T: ?Sized + TypeInfo<'ctx> + HasLayoutProvider<Args>, Args, F>
     HasLayoutProvider<BuildTypeInfo<'ctx, Args, F>> for TypeInfoData<'ctx, T>
 {
     type LayoutProvider = BuildTypeInfoLayoutProvider;
 }
 
-unsafe impl<'ctx, T: ?Sized + TypeInfo + HasLayoutProvider<Args>, Args, F>
+unsafe impl<'ctx, T: ?Sized + TypeInfo<'ctx> + HasLayoutProvider<Args>, Args, F>
     LayoutProvider<TypeInfoData<'ctx, T>, BuildTypeInfo<'ctx, Args, F>>
     for BuildTypeInfoLayoutProvider
 {
@@ -339,7 +363,7 @@ unsafe impl<'ctx, T: ?Sized + TypeInfo + HasLayoutProvider<Args>, Args, F>
 
 impl<'ctx, T, Args> TryCtor<BuildTypeInfo<'ctx, Args, T::Flags>> for TypeInfoData<'ctx, T>
 where
-    T: ?Sized + TypeInfo + TryCtor<Args>,
+    T: ?Sized + TypeInfo<'ctx> + TryCtor<Args>,
 {
     type Error = T::Error;
 
@@ -367,5 +391,32 @@ impl<'ctx, Tag> Ctor<Self> for Type<'ctx, Tag> {
     #[inline]
     fn init(uninit: init::Uninit<'_, Self>, args: Self) -> init::Init<'_, Self> {
         uninit.write(args)
+    }
+}
+
+impl<'ctx, Tag> MoveCtor for Type<'ctx, Tag> {
+    #[inline]
+    fn move_ctor<'this>(
+        uninit: init::Uninit<'this, Self>,
+        p: init::Init<Self>,
+    ) -> init::Init<'this, Self> {
+        uninit.write(p.into_inner())
+    }
+}
+
+impl<'ctx, Tag> TakeCtor for Type<'ctx, Tag> {
+    #[inline]
+    fn take_ctor<'this>(
+        uninit: init::Uninit<'this, Self>,
+        p: &mut Self,
+    ) -> init::Init<'this, Self> {
+        uninit.write(*p)
+    }
+}
+
+impl<'ctx, Tag> CloneCtor for Type<'ctx, Tag> {
+    #[inline]
+    fn clone_ctor<'this>(uninit: init::Uninit<'this, Self>, p: &Self) -> init::Init<'this, Self> {
+        uninit.write(*p)
     }
 }

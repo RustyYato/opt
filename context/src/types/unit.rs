@@ -21,15 +21,32 @@ impl core::fmt::Debug for UnitInfo {
 
 pub type UnitTy<'ctx> = Ty<'ctx, UnitInfo>;
 
-unsafe impl TypeInfo for UnitInfo {
+unsafe impl<'ctx> TypeInfo<'ctx> for UnitInfo {
     const TAG: TypeTag = TypeTag::Unit;
     type Flags = ();
+
+    type Key<'a> = ()
+    where
+        'ctx: 'a;
+
+    fn key<'a>(&'ctx self, (): Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a,
+    {
+    }
+
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, (): Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a,
+    {
+        Ty::create_in_place(alloc, (), ())
+    }
 }
 
 impl<'ctx> UnitTy<'ctx> {
     #[must_use]
-    pub(crate) fn create(ctx: AllocContext<'ctx>) -> Self {
-        Ty::create_in_place(ctx, (), ())
+    pub(crate) fn create(alloc: AllocContext<'ctx>) -> Self {
+        Ty::create_in_place(alloc, (), ())
     }
 }
 

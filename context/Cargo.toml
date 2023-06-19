@@ -11,5 +11,8 @@ istr = { workspace = true }
 thin = { workspace = true }
 bumpalo = '3'
 
-hashbrown = '0.13'
 rustc-hash = '1'
+
+[dependencies.hashbrown]
+version = '0.13'
+features = ['raw']

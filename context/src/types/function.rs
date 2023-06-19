@@ -2,8 +2,7 @@ use std::alloc::Layout;
 
 use init::{
     layout_provider::{HasLayoutProvider, LayoutProvider},
-    try_ctor::{of_ctor, of_ctor_any_err},
-    TryCtor,
+    Ctor,
 };
 
 use crate::ctx::AllocContext;
@@ -53,40 +52,32 @@ impl core::fmt::Debug for FunctionInfo<'_> {
 
 pub type FunctionTy<'ctx> = Ty<'ctx, FunctionInfo<'ctx>>;
 
-unsafe impl TypeInfo for FunctionInfo<'_> {
+unsafe impl<'ctx> TypeInfo<'ctx> for FunctionInfo<'ctx> {
     const TAG: TypeTag = TypeTag::Function;
     type Flags = ();
-}
 
-impl<'ctx> FunctionTy<'ctx> {
-    #[must_use]
-    pub(crate) fn create<I: ExactSizeIterator<Item = Type<'ctx>>>(
-        ctx: AllocContext<'ctx>,
-        output_ty: Type<'ctx>,
-        arguments: I,
-    ) -> Self {
-        let args_len = arguments.len();
-        match Ty::try_create_in_place(
-            ctx,
-            FunctionInit {
-                output_ty,
-                args_len,
-                arguments,
-            },
-            (),
-        ) {
-            Ok(ty) => ty,
-            Err(init::try_slice::IterInitError::NotEnoughItems) => {
-                fn not_enough_items(args_len: usize) -> ! {
-                    panic!("Arguments iterator didn't produce {args_len} items")
-                }
+    type Key<'a> = FunctionInit<'ctx, 'a> where 'ctx: 'a;
 
-                not_enough_items(args_len)
-            }
-            Err(init::try_slice::IterInitError::InitError(inf)) => match inf {},
+    #[inline]
+    fn key<'a>(&'ctx self, (): Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a,
+    {
+        FunctionInit {
+            output_ty: self.output_ty,
+            arguments: &self.arguments_tys,
         }
     }
 
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, key: Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a,
+    {
+        Ty::create_in_place(alloc, key, ())
+    }
+}
+
+impl<'ctx> FunctionTy<'ctx> {
     #[inline]
     pub fn output_ty(self) -> Type<'ctx> {
         self.info().output_ty
@@ -98,41 +89,39 @@ impl<'ctx> FunctionTy<'ctx> {
     }
 }
 
-struct FunctionInit<'ctx, I> {
-    output_ty: Type<'ctx>,
-    args_len: usize,
-    arguments: I,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct FunctionInit<'ctx, 'a> {
+    pub(crate) output_ty: Type<'ctx>,
+    pub(crate) arguments: &'a [Type<'ctx>],
 }
 
-impl<'ctx, I: Iterator<Item = Type<'ctx>>> TryCtor<FunctionInit<'ctx, I>> for FunctionInfo<'ctx> {
-    type Error = init::try_slice::IterInitError<core::convert::Infallible>;
-
-    fn try_init<'a>(
+impl<'ctx> Ctor<FunctionInit<'ctx, '_>> for FunctionInfo<'ctx> {
+    fn init<'a>(
         uninit: init::Uninit<'a, Self>,
-        args: FunctionInit<'ctx, I>,
-    ) -> Result<init::Init<'a, Self>, Self::Error> {
-        Ok(init::try_init_struct! {
+        args: FunctionInit<'ctx, '_>,
+    ) -> init::Init<'a, Self> {
+        init::init_struct! {
             uninit => Self {
-                output_ty: of_ctor_any_err(args.output_ty),
-                arguments_tys: init::try_slice::IterInit(args.arguments.map(of_ctor))
+                output_ty: args.output_ty,
+                arguments_tys: args.arguments,
             }
-        })
+        }
     }
 }
 
-impl<'ctx, I> HasLayoutProvider<FunctionInit<'ctx, I>> for FunctionInfo<'ctx> {
+impl<'ctx> HasLayoutProvider<FunctionInit<'ctx, '_>> for FunctionInfo<'ctx> {
     type LayoutProvider = FunctionInfoLayoutProvider;
 }
 
-struct FunctionInfoLayoutProvider;
+pub struct FunctionInfoLayoutProvider;
 
-unsafe impl<'ctx, I> LayoutProvider<FunctionInfo<'ctx>, FunctionInit<'ctx, I>>
+unsafe impl<'ctx> LayoutProvider<FunctionInfo<'ctx>, FunctionInit<'ctx, '_>>
     for FunctionInfoLayoutProvider
 {
-    fn layout_of(args: &FunctionInit<'ctx, I>) -> Option<std::alloc::Layout> {
+    fn layout_of(args: &FunctionInit<'ctx, '_>) -> Option<std::alloc::Layout> {
         Some(
             Layout::new::<Type>()
-                .extend(Layout::array::<Type>(args.args_len).ok()?)
+                .extend(Layout::array::<Type>(args.arguments.len()).ok()?)
                 .ok()?
                 .0,
         )
@@ -140,8 +129,8 @@ unsafe impl<'ctx, I> LayoutProvider<FunctionInfo<'ctx>, FunctionInit<'ctx, I>>
 
     unsafe fn cast(
         ptr: std::ptr::NonNull<u8>,
-        args: &FunctionInit<'ctx, I>,
+        args: &FunctionInit<'ctx, '_>,
     ) -> std::ptr::NonNull<FunctionInfo<'ctx>> {
-        std::ptr::NonNull::from_raw_parts(ptr.cast(), args.args_len)
+        std::ptr::NonNull::from_raw_parts(ptr.cast(), args.arguments.len())
     }
 }

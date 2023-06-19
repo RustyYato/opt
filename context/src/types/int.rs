@@ -26,9 +26,26 @@ impl core::fmt::Debug for IntegerInfo {
 
 pub type IntegerTy<'ctx> = Ty<'ctx, IntegerInfo>;
 
-unsafe impl TypeInfo for IntegerInfo {
+unsafe impl<'ctx> TypeInfo<'ctx> for IntegerInfo {
     const TAG: TypeTag = TypeTag::Integer;
     type Flags = ();
+
+    type Key<'a> = NonZeroU16 where 'ctx: 'a;
+
+    #[inline]
+    fn key<'a>(&'ctx self, (): Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a,
+    {
+        self.bits
+    }
+
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, key: Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a,
+    {
+        IntegerTy::create(alloc, key)
+    }
 }
 
 impl<'ctx> IntegerTy<'ctx> {

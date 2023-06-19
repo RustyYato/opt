@@ -36,17 +36,31 @@ impl core::fmt::Debug for FloatInfo {
 
 pub type FloatTy<'ctx> = Ty<'ctx, FloatInfo>;
 
-unsafe impl TypeInfo for FloatInfo {
+unsafe impl<'ctx> TypeInfo<'ctx> for FloatInfo {
     const TAG: TypeTag = TypeTag::Integer;
     type Flags = ();
+
+    type Key<'a> = FloatKind where 'ctx: 'a;
+
+    fn key<'a>(&'ctx self, (): Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a,
+    {
+        self.kind
+    }
+
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, key: Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a,
+    {
+        FloatTy::create(alloc, key)
+    }
 }
 
 impl<'ctx> FloatTy<'ctx> {
-    #[must_use]
-    pub(crate) fn create(ctx: AllocContext<'ctx>, kind: FloatKind) -> Self {
-        Ty::create_in_place(ctx, kind, ())
+    pub(crate) fn create(alloc: AllocContext<'ctx>, kind: FloatKind) -> Self {
+        Ty::create_in_place(alloc, kind, ())
     }
-
     #[inline]
     pub fn kind(self) -> FloatKind {
         self.info().kind

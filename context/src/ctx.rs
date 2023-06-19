@@ -108,20 +108,13 @@ impl<'ctx> Context<'ctx> {
     }
 
     #[inline]
-    pub fn function<I: IntoIterator>(
+    pub fn function(
         self,
         output_ty: impl Into<crate::types::Type<'ctx>>,
-        arguments: I,
-    ) -> crate::types::FunctionTy<'ctx>
-    where
-        I::Item: Into<crate::types::Type<'ctx>>,
-        I::IntoIter: ExactSizeIterator,
-    {
-        self.ty().function(
-            self.alloc(),
-            output_ty.into(),
-            arguments.into_iter().map(Into::into),
-        )
+        arguments: &[crate::types::Type<'ctx>],
+    ) -> crate::types::FunctionTy<'ctx> {
+        self.ty()
+            .function(self.alloc(), output_ty.into(), arguments)
     }
 
     #[inline]
@@ -138,18 +131,14 @@ impl<'ctx> Context<'ctx> {
         self,
         name: impl crate::name::Name,
         flags: crate::types::StructFlags,
-        field_tys: I,
+        field_tys: &[crate::types::Type<'ctx>],
     ) -> crate::types::StructTy<'ctx>
     where
         I::Item: Into<crate::types::Type<'ctx>>,
         I::IntoIter: ExactSizeIterator,
     {
-        self.ty().struct_ty(
-            self.alloc(),
-            name.to_name(),
-            flags,
-            field_tys.into_iter().map(Into::into),
-        )
+        self.ty()
+            .struct_ty(self.alloc(), name.to_name(), flags, field_tys)
     }
 }
 
@@ -204,8 +193,8 @@ fn test() {
         assert_eq!(ctx.int_lit(9), ctx.int_lit(9));
 
         assert_eq!(
-            ctx.function(ctx.iptr(), [ctx.unit()]),
-            ctx.function(ctx.i32(), [ctx.unit()]),
+            ctx.function(ctx.iptr(), &[ctx.unit().erase()]),
+            ctx.function(ctx.i32(), &[ctx.unit().erase()]),
         )
     });
 }

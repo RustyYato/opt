@@ -34,17 +34,32 @@ impl core::fmt::Debug for ArrayInfo<'_> {
 
 pub type ArrayTy<'ctx> = Ty<'ctx, ArrayInfo<'ctx>>;
 
-unsafe impl TypeInfo for ArrayInfo<'_> {
+unsafe impl<'ctx> TypeInfo<'ctx> for ArrayInfo<'ctx> {
     const TAG: TypeTag = TypeTag::Array;
     type Flags = ();
+
+    type Key<'a> = ArrayInit<'ctx> where 'ctx: 'a;
+
+    #[inline]
+    fn key<'a>(&'ctx self, (): Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a,
+    {
+        ArrayInit {
+            item_ty: self.item_ty,
+            len: self.len.value,
+        }
+    }
+
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, key: Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a,
+    {
+        Ty::create_in_place(alloc, key, ())
+    }
 }
 
 impl<'ctx> ArrayTy<'ctx> {
-    #[must_use]
-    pub(crate) fn create(ctx: AllocContext<'ctx>, item_ty: Type<'ctx>, len: u64) -> Self {
-        Ty::create_in_place(ctx, ArrayInit { item_ty, len }, ())
-    }
-
     pub fn item_ty(self) -> Type<'ctx> {
         self.info().item_ty
     }
@@ -55,9 +70,10 @@ impl<'ctx> ArrayTy<'ctx> {
     }
 }
 
-struct ArrayInit<'ctx> {
-    item_ty: Type<'ctx>,
-    len: u64,
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ArrayInit<'ctx> {
+    pub item_ty: Type<'ctx>,
+    pub len: u64,
 }
 
 impl<'ctx> Ctor<ArrayInit<'ctx>> for ArrayInfo<'ctx> {

@@ -31,9 +31,26 @@ impl core::fmt::Debug for PointerInfo {
 
 pub type PointerTy<'ctx> = Ty<'ctx, PointerInfo>;
 
-unsafe impl TypeInfo for PointerInfo {
+unsafe impl<'ctx> TypeInfo<'ctx> for PointerInfo {
     const TAG: TypeTag = TypeTag::Pointer;
     type Flags = ();
+
+    type Key<'a> = AddressSpace where 'ctx: 'a;
+
+    #[inline]
+    fn key<'a>(&'ctx self, (): Self::Flags) -> Self::Key<'a>
+    where
+        'ctx: 'a,
+    {
+        self.address_space
+    }
+
+    fn create_from_key<'a>(alloc: AllocContext<'ctx>, key: Self::Key<'a>) -> Ty<'ctx, Self>
+    where
+        'ctx: 'a,
+    {
+        Ty::create_in_place(alloc, key, ())
+    }
 }
 
 impl<'ctx> PointerTy<'ctx> {
