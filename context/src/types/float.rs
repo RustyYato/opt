@@ -34,14 +34,14 @@ impl core::fmt::Debug for FloatInfo {
     }
 }
 
-pub type Float<'ctx> = Ty<'ctx, FloatInfo>;
+pub type FloatTy<'ctx> = Ty<'ctx, FloatInfo>;
 
 unsafe impl TypeInfo for FloatInfo {
     const TAG: TypeTag = TypeTag::Integer;
     type Flags = ();
 }
 
-impl<'ctx> Float<'ctx> {
+impl<'ctx> FloatTy<'ctx> {
     #[must_use]
     pub(crate) fn create(ctx: AllocContext<'ctx>, kind: FloatKind) -> Self {
         Ty::create_in_place(ctx, kind, ())

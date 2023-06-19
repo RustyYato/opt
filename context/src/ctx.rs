@@ -72,35 +72,38 @@ macro_rules! getters {
 
 impl<'ctx> Context<'ctx> {
     getters! {
-        unit: Unit
-        i1: Integer
-        i8: Integer
-        i16: Integer
-        i32: Integer
-        i64: Integer
-        i128: Integer
-        isize: Integer
-        iptr: Integer
+        unit: UnitTy
+        i1: IntegerTy
+        i8: IntegerTy
+        i16: IntegerTy
+        i32: IntegerTy
+        i64: IntegerTy
+        i128: IntegerTy
+        isize: IntegerTy
+        iptr: IntegerTy
 
-        f16: Float
-        f32: Float
-        f64: Float
+        f16: FloatTy
+        f32: FloatTy
+        f64: FloatTy
 
-        ptr: Pointer
+        ptr: PointerTy
     }
 
     #[inline]
-    pub fn int(self, bits: NonZeroU16) -> crate::types::Integer<'ctx> {
+    pub fn int(self, bits: NonZeroU16) -> crate::types::IntegerTy<'ctx> {
         self.ty().int(self.alloc(), bits)
     }
 
     #[inline]
-    pub fn int_lit(self, bits: u16) -> crate::types::Integer<'ctx> {
+    pub fn int_lit(self, bits: u16) -> crate::types::IntegerTy<'ctx> {
         self.int(NonZeroU16::new(bits).unwrap())
     }
 
     #[inline]
-    pub fn ptr_at(self, address_space: crate::types::AddressSpace) -> crate::types::Pointer<'ctx> {
+    pub fn ptr_at(
+        self,
+        address_space: crate::types::AddressSpace,
+    ) -> crate::types::PointerTy<'ctx> {
         self.ty().ptr_at(self.alloc(), address_space)
     }
 
@@ -109,7 +112,7 @@ impl<'ctx> Context<'ctx> {
         self,
         output_ty: impl Into<crate::types::Type<'ctx>>,
         arguments: I,
-    ) -> crate::types::Function<'ctx>
+    ) -> crate::types::FunctionTy<'ctx>
     where
         I::Item: Into<crate::types::Type<'ctx>>,
         I::IntoIter: ExactSizeIterator,
@@ -126,7 +129,7 @@ impl<'ctx> Context<'ctx> {
         self,
         len: u64,
         item_ty: impl Into<crate::types::Type<'ctx>>,
-    ) -> crate::types::Array<'ctx> {
+    ) -> crate::types::ArrayTy<'ctx> {
         self.ty().array(self.alloc(), len, item_ty.into())
     }
 
@@ -136,7 +139,7 @@ impl<'ctx> Context<'ctx> {
         name: impl crate::name::Name,
         flags: crate::types::StructFlags,
         field_tys: I,
-    ) -> crate::types::Struct<'ctx>
+    ) -> crate::types::StructTy<'ctx>
     where
         I::Item: Into<crate::types::Type<'ctx>>,
         I::IntoIter: ExactSizeIterator,

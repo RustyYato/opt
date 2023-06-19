@@ -10,25 +10,25 @@ use super::Target;
 type FxHashMap<K, V> = HashMap<K, V, std::hash::BuildHasherDefault<rustc_hash::FxHasher>>;
 
 pub(crate) struct TypeContextInfo<'ctx> {
-    unit: types::Unit<'ctx>,
+    unit: types::UnitTy<'ctx>,
 
-    i1: types::Integer<'ctx>,
-    i8: types::Integer<'ctx>,
-    i16: types::Integer<'ctx>,
-    i32: types::Integer<'ctx>,
-    i64: types::Integer<'ctx>,
-    i128: types::Integer<'ctx>,
-    isize: types::Integer<'ctx>,
-    iptr: types::Integer<'ctx>,
+    i1: types::IntegerTy<'ctx>,
+    i8: types::IntegerTy<'ctx>,
+    i16: types::IntegerTy<'ctx>,
+    i32: types::IntegerTy<'ctx>,
+    i64: types::IntegerTy<'ctx>,
+    i128: types::IntegerTy<'ctx>,
+    isize: types::IntegerTy<'ctx>,
+    iptr: types::IntegerTy<'ctx>,
 
-    f16: types::Float<'ctx>,
-    f32: types::Float<'ctx>,
-    f64: types::Float<'ctx>,
+    f16: types::FloatTy<'ctx>,
+    f32: types::FloatTy<'ctx>,
+    f64: types::FloatTy<'ctx>,
 
-    ptr: types::Pointer<'ctx>,
+    ptr: types::PointerTy<'ctx>,
 
-    int_cache: RefCell<FxHashMap<NonZeroU16, types::Integer<'ctx>>>,
-    ptr_cache: RefCell<FxHashMap<types::AddressSpace, types::Pointer<'ctx>>>,
+    int_cache: RefCell<FxHashMap<NonZeroU16, types::IntegerTy<'ctx>>>,
+    ptr_cache: RefCell<FxHashMap<types::AddressSpace, types::PointerTy<'ctx>>>,
 }
 
 #[repr(transparent)]
@@ -60,12 +60,12 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
         let alloc = builder.alloc;
         let target = builder.target;
 
-        let i1 = types::Integer::create(alloc, nz!(1));
-        let i8 = types::Integer::create(alloc, nz!(8));
-        let i16 = types::Integer::create(alloc, nz!(16));
-        let i32 = types::Integer::create(alloc, nz!(32));
-        let i64 = types::Integer::create(alloc, nz!(64));
-        let i128 = types::Integer::create(alloc, nz!(128));
+        let i1 = types::IntegerTy::create(alloc, nz!(1));
+        let i8 = types::IntegerTy::create(alloc, nz!(8));
+        let i16 = types::IntegerTy::create(alloc, nz!(16));
+        let i32 = types::IntegerTy::create(alloc, nz!(32));
+        let i64 = types::IntegerTy::create(alloc, nz!(64));
+        let i128 = types::IntegerTy::create(alloc, nz!(128));
 
         let get = |bits: super::PtrBits| match bits {
             super::PtrBits::_8 => i8,
@@ -76,7 +76,7 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
         };
 
         uninit.write(TypeContextInfo {
-            unit: types::Unit::create(alloc),
+            unit: types::UnitTy::create(alloc),
 
             i1,
             i8,
@@ -87,11 +87,11 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
             isize: get(target.ptr_diff_bits),
             iptr: get(target.ptr_size_bits),
 
-            f16: types::Float::create(alloc, types::FloatKind::Ieee16Bit),
-            f32: types::Float::create(alloc, types::FloatKind::Ieee32Bit),
-            f64: types::Float::create(alloc, types::FloatKind::Ieee64Bit),
+            f16: types::FloatTy::create(alloc, types::FloatKind::Ieee16Bit),
+            f32: types::FloatTy::create(alloc, types::FloatKind::Ieee32Bit),
+            f64: types::FloatTy::create(alloc, types::FloatKind::Ieee64Bit),
 
-            ptr: types::Pointer::create(alloc, types::AddressSpace::DEFAULT),
+            ptr: types::PointerTy::create(alloc, types::AddressSpace::DEFAULT),
 
             int_cache: RefCell::new(FxHashMap::default()),
             ptr_cache: RefCell::new(FxHashMap::default()),
@@ -113,25 +113,25 @@ macro_rules! getters {
 
 impl<'ctx> TypeContext<'ctx> {
     getters! {
-        unit: Unit
-        i1: Integer
-        i8: Integer
-        i16: Integer
-        i32: Integer
-        i64: Integer
-        i128: Integer
-        isize: Integer
-        iptr: Integer
+        unit: UnitTy
+        i1: IntegerTy
+        i8: IntegerTy
+        i16: IntegerTy
+        i32: IntegerTy
+        i64: IntegerTy
+        i128: IntegerTy
+        isize: IntegerTy
+        iptr: IntegerTy
 
-        f16: Float
-        f32: Float
-        f64: Float
+        f16: FloatTy
+        f32: FloatTy
+        f64: FloatTy
 
-        ptr: Pointer
+        ptr: PointerTy
     }
 
     #[inline]
-    pub fn int(self, alloc: AllocContext<'ctx>, bits: NonZeroU16) -> types::Integer<'ctx> {
+    pub fn int(self, alloc: AllocContext<'ctx>, bits: NonZeroU16) -> types::IntegerTy<'ctx> {
         match bits.get() {
             1 => return self.info.i1,
             8 => return self.info.i8,
@@ -153,10 +153,10 @@ impl<'ctx> TypeContext<'ctx> {
     fn create_int<S: std::hash::BuildHasher>(
         self,
         alloc: AllocContext<'ctx>,
-        entry: VacantEntry<NonZeroU16, types::Integer<'ctx>, S>,
+        entry: VacantEntry<NonZeroU16, types::IntegerTy<'ctx>, S>,
         bits: NonZeroU16,
-    ) -> types::Integer<'ctx> {
-        *entry.insert(types::Integer::create(alloc, bits))
+    ) -> types::IntegerTy<'ctx> {
+        *entry.insert(types::IntegerTy::create(alloc, bits))
     }
 
     #[inline]
@@ -164,7 +164,7 @@ impl<'ctx> TypeContext<'ctx> {
         self,
         alloc: AllocContext<'ctx>,
         address_space: types::AddressSpace,
-    ) -> types::Pointer<'ctx> {
+    ) -> types::PointerTy<'ctx> {
         if address_space.is_default() {
             self.info.ptr
         } else {
@@ -182,10 +182,10 @@ impl<'ctx> TypeContext<'ctx> {
     fn create_ptr_at<S: std::hash::BuildHasher>(
         self,
         alloc: AllocContext<'ctx>,
-        entry: VacantEntry<types::AddressSpace, types::Pointer<'ctx>, S>,
+        entry: VacantEntry<types::AddressSpace, types::PointerTy<'ctx>, S>,
         address_space: types::AddressSpace,
-    ) -> types::Pointer<'ctx> {
-        *entry.insert(types::Pointer::create(alloc, address_space))
+    ) -> types::PointerTy<'ctx> {
+        *entry.insert(types::PointerTy::create(alloc, address_space))
     }
 
     pub fn function<I: ExactSizeIterator<Item = types::Type<'ctx>>>(
@@ -193,8 +193,8 @@ impl<'ctx> TypeContext<'ctx> {
         alloc: AllocContext<'ctx>,
         output_ty: types::Type<'ctx>,
         arguments: I,
-    ) -> types::Function<'ctx> {
-        types::Function::create(alloc, output_ty, arguments)
+    ) -> types::FunctionTy<'ctx> {
+        types::FunctionTy::create(alloc, output_ty, arguments)
     }
 
     pub fn array(
@@ -202,8 +202,8 @@ impl<'ctx> TypeContext<'ctx> {
         alloc: AllocContext<'ctx>,
         len: u64,
         item_ty: types::Type<'ctx>,
-    ) -> types::Array<'ctx> {
-        types::Array::create(alloc, item_ty, len)
+    ) -> types::ArrayTy<'ctx> {
+        types::ArrayTy::create(alloc, item_ty, len)
     }
 
     pub fn struct_ty<I: ExactSizeIterator<Item = types::Type<'ctx>>>(
@@ -212,7 +212,7 @@ impl<'ctx> TypeContext<'ctx> {
         name: Option<istr::IStr>,
         flags: types::StructFlags,
         field_tys: I,
-    ) -> types::Struct<'ctx> {
-        types::Struct::create(alloc, name, flags, field_tys)
+    ) -> types::StructTy<'ctx> {
+        types::StructTy::create(alloc, name, flags, field_tys)
     }
 }

@@ -49,7 +49,7 @@ impl core::fmt::Debug for StructInfo<'_> {
     }
 }
 
-pub type Struct<'ctx> = Ty<'ctx, StructInfo<'ctx>>;
+pub type StructTy<'ctx> = Ty<'ctx, StructInfo<'ctx>>;
 
 unsafe impl TypeInfo for StructInfo<'_> {
     const TAG: TypeTag = TypeTag::Struct;
@@ -85,23 +85,23 @@ impl StructFlags {
     }
 
     pub fn packed(self) -> bool {
-        (self & Struct::PACKED).any()
+        (self & StructTy::PACKED).any()
     }
 
     pub fn opaque(self) -> bool {
-        (self & Struct::OPAQUE).any()
+        (self & StructTy::OPAQUE).any()
     }
 
     pub fn literal(self) -> bool {
-        (self & Struct::LITERAL).any()
+        (self & StructTy::LITERAL).any()
     }
 
     pub fn sized(self) -> bool {
-        (self & Struct::SIZED).any()
+        (self & StructTy::SIZED).any()
     }
 }
 
-impl<'ctx> Struct<'ctx> {
+impl<'ctx> StructTy<'ctx> {
     pub const PACKED: StructFlags = StructFlags(1 << 0);
     pub const OPAQUE: StructFlags = StructFlags(1 << 1);
     pub const LITERAL: StructFlags = StructFlags(1 << 2);

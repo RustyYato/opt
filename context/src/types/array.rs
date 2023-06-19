@@ -32,14 +32,14 @@ impl core::fmt::Debug for ArrayInfo<'_> {
     }
 }
 
-pub type Array<'ctx> = Ty<'ctx, ArrayInfo<'ctx>>;
+pub type ArrayTy<'ctx> = Ty<'ctx, ArrayInfo<'ctx>>;
 
 unsafe impl TypeInfo for ArrayInfo<'_> {
     const TAG: TypeTag = TypeTag::Array;
     type Flags = ();
 }
 
-impl<'ctx> Array<'ctx> {
+impl<'ctx> ArrayTy<'ctx> {
     #[must_use]
     pub(crate) fn create(ctx: AllocContext<'ctx>, item_ty: Type<'ctx>, len: u64) -> Self {
         Ty::create_in_place(ctx, ArrayInit { item_ty, len }, ())

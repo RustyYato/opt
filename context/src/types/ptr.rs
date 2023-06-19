@@ -29,14 +29,14 @@ impl core::fmt::Debug for PointerInfo {
     }
 }
 
-pub type Pointer<'ctx> = Ty<'ctx, PointerInfo>;
+pub type PointerTy<'ctx> = Ty<'ctx, PointerInfo>;
 
 unsafe impl TypeInfo for PointerInfo {
     const TAG: TypeTag = TypeTag::Pointer;
     type Flags = ();
 }
 
-impl<'ctx> Pointer<'ctx> {
+impl<'ctx> PointerTy<'ctx> {
     #[must_use]
     pub(crate) fn create(ctx: AllocContext<'ctx>, address_space: AddressSpace) -> Self {
         Ty::create_in_place(ctx, address_space, ())

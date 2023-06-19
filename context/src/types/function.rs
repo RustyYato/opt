@@ -51,14 +51,14 @@ impl core::fmt::Debug for FunctionInfo<'_> {
     }
 }
 
-pub type Function<'ctx> = Ty<'ctx, FunctionInfo<'ctx>>;
+pub type FunctionTy<'ctx> = Ty<'ctx, FunctionInfo<'ctx>>;
 
 unsafe impl TypeInfo for FunctionInfo<'_> {
     const TAG: TypeTag = TypeTag::Function;
     type Flags = ();
 }
 
-impl<'ctx> Function<'ctx> {
+impl<'ctx> FunctionTy<'ctx> {
     #[must_use]
     pub(crate) fn create<I: ExactSizeIterator<Item = Type<'ctx>>>(
         ctx: AllocContext<'ctx>,

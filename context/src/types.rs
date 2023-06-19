@@ -11,11 +11,11 @@ mod unit;
 
 pub use address_space::AddressSpace;
 
-pub use array::Array;
-pub use float::{Float, FloatKind};
-pub use function::Function;
-pub use int::Integer;
-pub use ptr::Pointer;
+pub use array::ArrayTy;
+pub use float::{FloatKind, FloatTy};
+pub use function::FunctionTy;
+pub use int::IntegerTy;
+pub use ptr::PointerTy;
 pub use raw_type::{Ty, Type};
-pub use struct_ty::{Struct, StructFlags};
-pub use unit::Unit;
+pub use struct_ty::{StructFlags, StructTy};
+pub use unit::UnitTy;

@@ -174,12 +174,12 @@ pub enum TypeTag {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnpackedType<'ctx> {
-    Unit(super::Unit<'ctx>),
-    Integer(super::Integer<'ctx>),
-    Pointer(super::Pointer<'ctx>),
-    Function(super::Function<'ctx>),
-    Array(super::Array<'ctx>),
-    Struct(super::Struct<'ctx>),
+    Unit(super::UnitTy<'ctx>),
+    Integer(super::IntegerTy<'ctx>),
+    Pointer(super::PointerTy<'ctx>),
+    Function(super::FunctionTy<'ctx>),
+    Array(super::ArrayTy<'ctx>),
+    Struct(super::StructTy<'ctx>),
 }
 
 /// # Safety

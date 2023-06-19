@@ -19,14 +19,14 @@ impl core::fmt::Debug for UnitInfo {
     }
 }
 
-pub type Unit<'ctx> = Ty<'ctx, UnitInfo>;
+pub type UnitTy<'ctx> = Ty<'ctx, UnitInfo>;
 
 unsafe impl TypeInfo for UnitInfo {
     const TAG: TypeTag = TypeTag::Unit;
     type Flags = ();
 }
 
-impl<'ctx> Unit<'ctx> {
+impl<'ctx> UnitTy<'ctx> {
     #[must_use]
     pub(crate) fn create(ctx: AllocContext<'ctx>) -> Self {
         Ty::create_in_place(ctx, (), ())
