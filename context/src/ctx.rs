@@ -191,10 +191,11 @@ fn test() {
         let _ = ctx.ty().unit();
         assert_eq!(ctx.ptr(), ctx.ptr());
         assert_eq!(ctx.int_lit(9), ctx.int_lit(9));
+        assert_ne!(ctx.int_lit(9), ctx.int_lit(10));
 
         assert_eq!(
             ctx.function(ctx.iptr(), &[ctx.unit().erase()]),
             ctx.function(ctx.i32(), &[ctx.unit().erase()]),
-        )
+        );
     });
 }
