@@ -1,12 +1,11 @@
 use std::marker::PhantomData;
 
 use init::{layout_provider::HasLayoutProvider, Ctor, TryCtor};
-use thread_local::ThreadLocal;
 
 use super::{ContextRef, Invariant};
 
 pub(crate) struct AllocContextInfo<'ctx> {
-    alloc: ThreadLocal<bumpalo::Bump>,
+    alloc: bumpalo::Bump,
     pub ctx_ref: ContextRef<'ctx>,
 }
 
@@ -17,17 +16,12 @@ pub struct AllocContext<'ctx> {
 }
 
 impl<'ctx> AllocContext<'ctx> {
-    fn alloc(self) -> &'ctx bumpalo::Bump {
-        self.info.alloc.get_or_default()
-    }
-
     pub(crate) fn try_create_in_place<T, Args>(self, args: Args) -> Result<&'ctx T, T::Error>
     where
         T: ?Sized + TryCtor<Args> + HasLayoutProvider<Args>,
     {
-        let bumpalo = self.alloc();
         let layout = init::layout_provider::layout_of::<T, Args>(&args).unwrap();
-        let ptr = bumpalo.alloc_layout(layout);
+        let ptr = self.info.alloc.alloc_layout(layout);
 
         let ptr = unsafe { init::layout_provider::cast::<T, Args>(ptr, &args) };
 
@@ -46,7 +40,7 @@ impl Ctor for AllocContextInfo<'_> {
     #[inline]
     fn init(uninit: init::Uninit<'_, Self>, (): ()) -> init::Init<'_, Self> {
         uninit.write(AllocContextInfo {
-            alloc: ThreadLocal::new(),
+            alloc: bumpalo::Bump::new(),
             ctx_ref: ContextRef(Invariant(PhantomData)),
         })
     }
