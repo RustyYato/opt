@@ -29,6 +29,15 @@ enum ZipWithMut<'a, 'b> {
     },
 }
 
+#[cfg(target_pointer_width = "16")]
+type WideT = u32;
+
+#[cfg(target_pointer_width = "32")]
+type WideT = u64;
+
+#[cfg(target_pointer_width = "64")]
+type WideT = u128;
+
 //
 impl ApInt {
     pub fn unset_all(&mut self) {
@@ -320,6 +329,128 @@ impl ApInt {
 
         Ok(Ordering::Equal)
     }
+
+    pub fn add_unsigned_word(&mut self, x: usize) {
+        if let [first, words @ ..] = self.words_mut() {
+            let (a, carry) = first.overflowing_add(x);
+            *first = a;
+
+            if !carry {
+                return;
+            }
+
+            for word in words {
+                let (a, carry) = word.overflowing_add(1);
+                *word = a;
+                if !carry {
+                    return;
+                }
+            }
+        }
+    }
+
+    pub fn bitnot(&mut self) {
+        self.flip_all()
+    }
+
+    pub fn negate(&mut self) {
+        // we store in two's complement, so -x == !x + 1
+        self.bitnot();
+        self.add_unsigned_word(1);
+    }
+
+    pub fn into_add(mut self, other: &Self) -> Result<Self> {
+        self.add_assign(other)?;
+        Ok(self)
+    }
+
+    pub fn add_assign(&mut self, other: &Self) -> Result<bool> {
+        let ovf = match self.zip_with_mut(other)? {
+            ZipWithMut::Empty => false,
+            ZipWithMut::NonEmpty {
+                self_last: _,
+                other_last,
+                self_last_target,
+                self_words,
+                other_words,
+            } => {
+                let mut carry = false;
+
+                for (self_word, other_word) in self_words.iter_mut().zip(other_words) {
+                    let (word, a) = self_word.overflowing_add(*other_word);
+                    let (word, b) = word.overflowing_add(carry as usize);
+                    *self_word = word;
+                    carry = a || b
+                }
+
+                let (word, a) = self_last_target.overflowing_add(other_last);
+                let (word, b) = word.overflowing_add(carry as usize);
+                *self_last_target = word;
+                a || b
+            }
+        };
+
+        Ok(ovf)
+    }
+
+    pub fn into_sub(mut self, other: &Self) -> Result<Self> {
+        self.sub_assign(other)?;
+        Ok(self)
+    }
+
+    pub fn sub_assign(&mut self, other: &Self) -> Result<bool> {
+        let ovf = match self.zip_with_mut(other)? {
+            ZipWithMut::Empty => false,
+            ZipWithMut::NonEmpty {
+                self_last: _,
+                other_last,
+                self_last_target,
+                self_words,
+                other_words,
+            } => {
+                let mut carry = false;
+
+                for (self_word, other_word) in self_words.iter_mut().zip(other_words) {
+                    let (word, a) = self_word.overflowing_sub(*other_word);
+                    let (word, b) = word.overflowing_sub(carry as usize);
+                    *self_word = word;
+                    carry = a || b
+                }
+
+                let (word, a) = self_last_target.overflowing_sub(other_last);
+                let (word, b) = word.overflowing_sub(carry as usize);
+                *self_last_target = word;
+                a || b
+            }
+        };
+
+        Ok(ovf)
+    }
+}
+
+impl core::ops::Add<&ApInt> for ApInt {
+    type Output = Self;
+
+    fn add(self, rhs: &ApInt) -> Self::Output {
+        self.into_add(rhs)
+            .expect("Cannot add ApInts of different bit-widths")
+    }
+}
+
+impl core::ops::Sub<&ApInt> for ApInt {
+    type Output = Self;
+
+    fn sub(self, rhs: &ApInt) -> Self::Output {
+        self.into_sub(rhs)
+            .expect("Cannot add ApInts of different bit-widths")
+    }
+}
+
+impl Eq for ApInt {}
+impl PartialEq for ApInt {
+    fn eq(&self, other: &Self) -> bool {
+        self.unsigned_cmp(other) == Ok(Ordering::Equal)
+    }
 }
 
 #[cfg(test)]
@@ -338,6 +469,7 @@ mod tests {
         let b = ApInt::from_u128(1 << 74);
         assert_eq!(a.unsigned_cmp(&b), Ok(Ordering::Greater));
     }
+
     #[test]
     fn test_signed_cmp() {
         let a = ApInt::from_u8(!(1 << 7));
@@ -349,5 +481,31 @@ mod tests {
         let a = ApInt::from_u128(1 << 127);
         let b = ApInt::from_u128(1 << 74);
         assert_eq!(a.signed_cmp(&b), Ok(Ordering::Less));
+    }
+
+    #[test]
+    fn test_add() {
+        let a = ApInt::from_u128(10 | (80 << 64));
+        let b = ApInt::from_u128(50 | (30 << 64));
+        let c = ApInt::from_u128(60 | (110 << 64));
+        assert_eq!(a + &b, c);
+
+        let a = ApInt::from_u128(10 | (1 << 63) | (80 << 64));
+        let b = ApInt::from_u128(50 | (1 << 63) | (30 << 64));
+        let c = ApInt::from_u128(60 | (111 << 64));
+        assert_eq!(a + &b, c);
+    }
+
+    #[test]
+    fn test_sub() {
+        let a = ApInt::from_u128(50 | (80 << 64));
+        let b = ApInt::from_u128(10 | (30 << 64));
+        let c = ApInt::from_u128(40 | (50 << 64));
+        assert_eq!(a - &b, c);
+
+        let a = ApInt::from_u128(10 | (1 << 63) | (80 << 64));
+        let b = ApInt::from_u128(50 | (1 << 63) | (30 << 64));
+        let c = ApInt::from_u128((10 | (1 << 63) | (80 << 64)) - (50 | (1 << 63) | (30 << 64)));
+        assert_eq!(a - &b, c);
     }
 }

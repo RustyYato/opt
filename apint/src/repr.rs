@@ -55,6 +55,15 @@ impl<const N: usize> WordAlignedBytes<N> {
     }
 }
 
+impl core::fmt::Debug for ApInt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ApInt")
+            .field("bit_width", &self.bit_width)
+            .field("words", &self.words())
+            .finish()
+    }
+}
+
 impl ApInt {
     /// # Safety
     ///
