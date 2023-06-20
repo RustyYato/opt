@@ -1,35 +1,69 @@
+use std::hash::Hash;
+
 use init::{
     layout_provider::{HasLayoutProvider, SizedLayoutProvider},
     Ctor,
 };
+use rug::integer::BorrowInteger;
 
-use crate::{types::Type, AllocContext};
+use crate::{types::IntegerTy, AllocContext};
 
-use super::Value;
+#[derive(Debug, Clone, Copy)]
+pub struct ConstIntInfo<'ctx> {
+    value: BorrowInteger<'ctx>,
+}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ConstIntInfo {}
+impl Eq for ConstIntInfo<'_> {}
+impl PartialEq for ConstIntInfo<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        *self.value == *other.value
+    }
+}
 
-pub type ConstInt<'ctx> = super::Val<'ctx, ConstIntInfo>;
+impl Hash for ConstIntInfo<'_> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+    }
+}
 
-unsafe impl super::ValueInfo for ConstIntInfo {
+pub type ConstInt<'ctx> = super::Val<'ctx, ConstIntInfo<'ctx>>;
+
+unsafe impl<'ctx> super::ValueInfo for ConstIntInfo<'ctx> {
     const TAG: super::ValueTag = super::ValueTag::ConstInt;
-    type Flags = ();
+    type Flags = bool;
 }
 
 impl<'ctx> ConstInt<'ctx> {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(ctx: AllocContext<'ctx>, ty: Type<'ctx>) -> Value<'ctx> {
-        Self::create_in_place(ctx, ty, (), ()).erase()
+    pub(crate) fn new(
+        ctx: AllocContext<'ctx>,
+        ty: IntegerTy<'ctx>,
+        value: BorrowInteger<'ctx>,
+        signed: bool,
+    ) -> ConstInt<'ctx> {
+        Self::create_in_place(ctx, ty.erase(), value, signed)
+    }
+
+    #[inline]
+    pub fn is_signed(&self) -> bool {
+        self.flags()
+    }
+
+    #[inline]
+    pub fn value(&self) -> BorrowInteger<'ctx> {
+        self.info().value
     }
 }
 
-impl Ctor for ConstIntInfo {
-    fn init(uninit: init::Uninit<'_, Self>, (): ()) -> init::Init<'_, Self> {
-        uninit.write(Self {})
+impl<'ctx> Ctor<BorrowInteger<'ctx>> for ConstIntInfo<'ctx> {
+    fn init<'a>(
+        uninit: init::Uninit<'a, Self>,
+        value: BorrowInteger<'ctx>,
+    ) -> init::Init<'a, Self> {
+        uninit.write(Self { value })
     }
 }
 
-impl HasLayoutProvider for ConstIntInfo {
+impl<'ctx> HasLayoutProvider<BorrowInteger<'ctx>> for ConstIntInfo<'ctx> {
     type LayoutProvider = SizedLayoutProvider;
 }

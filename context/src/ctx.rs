@@ -8,12 +8,18 @@ pub use alloc_ctx::AllocContext;
 mod types_ctx;
 pub use types_ctx::TypeContext;
 
+mod value_ctx;
+pub use value_ctx::ValueContext;
+
+use crate::{types, value};
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 struct Invariant<'a>(PhantomData<*mut &'a ()>);
 
 pub(crate) struct ContextInfo<'ctx> {
     alloc: alloc_ctx::AllocContextInfo<'ctx>,
     ty: types_ctx::TypeContextInfo<'ctx>,
+    value: value_ctx::ValueContextInfo<'ctx>,
     target: Target,
 }
 
@@ -56,6 +62,14 @@ impl<'ctx> Context<'ctx> {
             info: &self.info.ty,
         }
     }
+
+    #[inline]
+    #[must_use]
+    pub fn value(&self) -> ValueContext<'ctx> {
+        ValueContext {
+            info: &self.info.value,
+        }
+    }
 }
 
 macro_rules! getters {
@@ -86,43 +100,36 @@ impl<'ctx> Context<'ctx> {
         f32: FloatTy
         f64: FloatTy
 
-        ptr: PointerTy
+        ptr_ty: PointerTy
     }
 
     #[inline]
-    pub fn int(self, bits: NonZeroU16) -> crate::types::IntegerTy<'ctx> {
+    pub fn int_ty(self, bits: NonZeroU16) -> types::IntegerTy<'ctx> {
         self.ty().int(self.alloc(), bits)
     }
 
     #[inline]
-    pub fn int_lit(self, bits: u16) -> crate::types::IntegerTy<'ctx> {
-        self.int(NonZeroU16::new(bits).unwrap())
+    pub fn int_ty_lit(self, bits: u16) -> types::IntegerTy<'ctx> {
+        self.int_ty(NonZeroU16::new(bits).unwrap())
     }
 
     #[inline]
-    pub fn ptr_at(
-        self,
-        address_space: crate::types::AddressSpace,
-    ) -> crate::types::PointerTy<'ctx> {
+    pub fn ptr_ty_at(self, address_space: types::AddressSpace) -> types::PointerTy<'ctx> {
         self.ty().ptr_at(self.alloc(), address_space)
     }
 
     #[inline]
-    pub fn function(
+    pub fn function_ty(
         self,
-        output_ty: impl Into<crate::types::Type<'ctx>>,
-        arguments: &[crate::types::Type<'ctx>],
-    ) -> crate::types::FunctionTy<'ctx> {
+        output_ty: impl Into<types::Type<'ctx>>,
+        arguments: &[types::Type<'ctx>],
+    ) -> types::FunctionTy<'ctx> {
         self.ty()
             .function(self.alloc(), output_ty.into(), arguments)
     }
 
     #[inline]
-    pub fn array(
-        self,
-        len: u64,
-        item_ty: impl Into<crate::types::Type<'ctx>>,
-    ) -> crate::types::ArrayTy<'ctx> {
+    pub fn array_ty(self, len: u64, item_ty: impl Into<types::Type<'ctx>>) -> types::ArrayTy<'ctx> {
         self.ty().array(self.alloc(), len, item_ty.into())
     }
 
@@ -130,15 +137,26 @@ impl<'ctx> Context<'ctx> {
     pub fn struct_ty<I: IntoIterator>(
         self,
         name: impl crate::name::Name,
-        flags: crate::types::StructFlags,
-        field_tys: &[crate::types::Type<'ctx>],
-    ) -> crate::types::StructTy<'ctx>
+        flags: types::StructFlags,
+        field_tys: &[types::Type<'ctx>],
+    ) -> types::StructTy<'ctx>
     where
-        I::Item: Into<crate::types::Type<'ctx>>,
+        I::Item: Into<types::Type<'ctx>>,
         I::IntoIter: ExactSizeIterator,
     {
         self.ty()
             .struct_ty(self.alloc(), name.to_name(), flags, field_tys)
+    }
+}
+
+impl<'ctx> Context<'ctx> {
+    pub fn const_int(
+        self,
+        ty: types::IntegerTy<'ctx>,
+        value: &'ctx rug::Integer,
+        signed: bool,
+    ) -> Option<value::ConstInt<'ctx>> {
+        self.value().const_int(self.alloc(), ty, value, signed)
     }
 }
 
@@ -174,6 +192,7 @@ impl<'ctx> Ctor<ContextBuilder> for ContextInfo<'ctx> {
                     },
                     target: &builder.target,
                 },
+                value: (),
                 target: init::ctor(|uninit| uninit.write(builder.target))
             }
         }
@@ -189,13 +208,16 @@ fn test() {
 
     Context::with(target, |ctx| {
         let _ = ctx.ty().unit();
-        assert_eq!(ctx.ptr(), ctx.ptr());
-        assert_eq!(ctx.int_lit(9), ctx.int_lit(9));
-        assert_ne!(ctx.int_lit(9), ctx.int_lit(10));
+        assert_eq!(ctx.ptr_ty(), ctx.ptr_ty());
+        assert_eq!(ctx.int_ty_lit(9), ctx.int_ty_lit(9));
+        assert_ne!(ctx.int_ty_lit(9), ctx.int_ty_lit(10));
 
         assert_eq!(
-            ctx.function(ctx.iptr(), &[ctx.unit().erase()]),
-            ctx.function(ctx.i32(), &[ctx.unit().erase()]),
+            ctx.function_ty(ctx.iptr(), &[ctx.unit().erase()]),
+            ctx.function_ty(ctx.i32(), &[ctx.unit().erase()]),
         );
+
+        let four = ctx.value().intern_i32(4);
+        ctx.const_int(ctx.int_ty_lit(3), four, true).unwrap();
     });
 }

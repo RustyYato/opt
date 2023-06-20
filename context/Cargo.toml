@@ -10,6 +10,7 @@ init = { workspace = true }
 istr = { workspace = true }
 thin = { workspace = true }
 bumpalo = '3'
+rug = '1'
 
 rustc-hash = '1'
 

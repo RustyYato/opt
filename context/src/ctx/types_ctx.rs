@@ -25,7 +25,7 @@ pub(crate) struct TypeContextInfo<'ctx> {
     f32: types::FloatTy<'ctx>,
     f64: types::FloatTy<'ctx>,
 
-    ptr: types::PointerTy<'ctx>,
+    ptr_ty: types::PointerTy<'ctx>,
 
     int_cache: TypeCache<'ctx, types::IntegerInfo>,
     ptr_cache: TypeCache<'ctx, types::PointerInfo>,
@@ -94,7 +94,7 @@ impl<'ctx> Ctor<TypeContextBuilder<'ctx, '_>> for TypeContextInfo<'ctx> {
             f32: types::FloatTy::create(alloc, types::FloatKind::Ieee32Bit),
             f64: types::FloatTy::create(alloc, types::FloatKind::Ieee64Bit),
 
-            ptr: types::PointerTy::create(alloc, types::AddressSpace::DEFAULT),
+            ptr_ty: types::PointerTy::create(alloc, types::AddressSpace::DEFAULT),
 
             int_cache: TypeCache::new(),
             ptr_cache: TypeCache::new(),
@@ -133,7 +133,7 @@ impl<'ctx> TypeContext<'ctx> {
         f32: FloatTy
         f64: FloatTy
 
-        ptr: PointerTy
+        ptr_ty: PointerTy
     }
 
     #[inline]
@@ -158,7 +158,7 @@ impl<'ctx> TypeContext<'ctx> {
         address_space: types::AddressSpace,
     ) -> types::PointerTy<'ctx> {
         if address_space.is_default() {
-            self.info.ptr
+            self.info.ptr_ty
         } else {
             self.info.ptr_cache.get_or_create(alloc, address_space)
         }
