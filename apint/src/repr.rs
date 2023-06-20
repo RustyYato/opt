@@ -38,11 +38,6 @@ struct WordAlignedBytes<const N: usize> {
     bytes: [u8; N],
 }
 
-#[non_exhaustive]
-pub struct MismatchedBitWidth {}
-
-pub type Result<T, E = MismatchedBitWidth> = core::result::Result<T, E>;
-
 impl<const N: usize> WordAlignedBytes<N> {
     const N_DIV_WORD_BYTES: () = assert!(N % WORD_BYTES == 0);
 

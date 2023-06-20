@@ -1,6 +1,33 @@
-use core::num::NonZeroUsize;
+use core::{cmp::Ordering, num::NonZeroUsize};
 
-use crate::{ApInt, BitPos, DigitPos, Result};
+use crate::{ApInt, BitPos, DigitPos};
+
+#[non_exhaustive]
+#[derive(Debug, PartialEq, Eq)]
+pub struct MismatchedBitWidth {}
+
+pub type Result<T = (), E = MismatchedBitWidth> = core::result::Result<T, E>;
+
+enum ZipWith<'a, 'b> {
+    Empty,
+    NonEmpty {
+        self_last: usize,
+        other_last: usize,
+        self_words: &'a [usize],
+        other_words: &'b [usize],
+    },
+}
+
+enum ZipWithMut<'a, 'b> {
+    Empty,
+    NonEmpty {
+        self_last: usize,
+        other_last: usize,
+        self_last_target: &'a mut usize,
+        self_words: &'a mut [usize],
+        other_words: &'b [usize],
+    },
+}
 
 //
 impl ApInt {
@@ -193,5 +220,134 @@ impl ApInt {
         } else {
             0
         }
+    }
+
+    fn zip_with<'a, 'b>(&'a self, other: &'b Self) -> Result<ZipWith<'a, 'b>> {
+        if self.bit_width() == other.bit_width() {
+            Ok(match (self.words(), other.words()) {
+                ([], []) => ZipWith::Empty,
+                ([self_words @ .., self_last], [other_words @ .., other_last]) => {
+                    ZipWith::NonEmpty {
+                        self_last: self_last & self.bit_width().excess_bits_mask(),
+                        other_last: other_last & self.bit_width().excess_bits_mask(),
+                        self_words,
+                        other_words,
+                    }
+                }
+                _ => unreachable!(),
+            })
+        } else {
+            Err(MismatchedBitWidth {})
+        }
+    }
+
+    fn zip_with_mut<'a, 'b>(&'a mut self, other: &'b Self) -> Result<ZipWithMut<'a, 'b>> {
+        if self.bit_width() == other.bit_width() {
+            Ok(match (self.words_mut(), other.words()) {
+                ([], []) => ZipWithMut::Empty,
+                ([self_words @ .., self_last], [other_words @ .., other_last]) => {
+                    ZipWithMut::NonEmpty {
+                        self_last: *self_last & other.bit_width().excess_bits_mask(),
+                        other_last: *other_last & other.bit_width().excess_bits_mask(),
+                        self_last_target: self_last,
+                        self_words,
+                        other_words,
+                    }
+                }
+                _ => unreachable!(),
+            })
+        } else {
+            Err(MismatchedBitWidth {})
+        }
+    }
+
+    pub fn unsigned_cmp(&self, other: &Self) -> Result<Ordering> {
+        match self.zip_with(other)? {
+            ZipWith::Empty => (),
+            ZipWith::NonEmpty {
+                self_last,
+                other_last,
+                self_words,
+                other_words,
+            } => {
+                match self_last.cmp(&other_last) {
+                    Ordering::Less => return Ok(Ordering::Less),
+                    Ordering::Equal => (),
+                    Ordering::Greater => return Ok(Ordering::Greater),
+                }
+
+                for (s, o) in self_words.iter().zip(other_words).rev() {
+                    match s.cmp(o) {
+                        Ordering::Less => return Ok(Ordering::Less),
+                        Ordering::Equal => (),
+                        Ordering::Greater => return Ok(Ordering::Greater),
+                    }
+                }
+            }
+        }
+
+        Ok(Ordering::Equal)
+    }
+
+    pub fn signed_cmp(&self, other: &Self) -> Result<Ordering> {
+        match self.zip_with(other)? {
+            ZipWith::Empty => (),
+            ZipWith::NonEmpty {
+                self_last,
+                other_last,
+                self_words,
+                other_words,
+            } => {
+                let shift_bits = usize::BITS - self.bit_width().excess_bits() as u32;
+                let self_last = (self_last << shift_bits) as isize;
+                let other_last = (other_last << shift_bits) as isize;
+
+                match self_last.cmp(&other_last) {
+                    Ordering::Less => return Ok(Ordering::Less),
+                    Ordering::Equal => (),
+                    Ordering::Greater => return Ok(Ordering::Greater),
+                }
+
+                for (s, o) in self_words.iter().zip(other_words).rev() {
+                    match s.cmp(o) {
+                        Ordering::Less => return Ok(Ordering::Less),
+                        Ordering::Equal => (),
+                        Ordering::Greater => return Ok(Ordering::Greater),
+                    }
+                }
+            }
+        }
+
+        Ok(Ordering::Equal)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unsigned_cmp() {
+        let a = ApInt::from_u8(!(1 << 7));
+        let b = ApInt::from_u8(1 << 7);
+        assert_eq!(a.unsigned_cmp(&b), Ok(Ordering::Less));
+        let a = ApInt::from_u128(1 << 80);
+        let b = ApInt::from_u128(1 << 74);
+        assert_eq!(a.unsigned_cmp(&b), Ok(Ordering::Greater));
+        let a = ApInt::from_u128(1 << 127);
+        let b = ApInt::from_u128(1 << 74);
+        assert_eq!(a.unsigned_cmp(&b), Ok(Ordering::Greater));
+    }
+    #[test]
+    fn test_signed_cmp() {
+        let a = ApInt::from_u8(!(1 << 7));
+        let b = ApInt::from_u8(1 << 7);
+        assert_eq!(a.signed_cmp(&b), Ok(Ordering::Greater));
+        let a = ApInt::from_u128(1 << 80);
+        let b = ApInt::from_u128(1 << 74);
+        assert_eq!(a.signed_cmp(&b), Ok(Ordering::Greater));
+        let a = ApInt::from_u128(1 << 127);
+        let b = ApInt::from_u128(1 << 74);
+        assert_eq!(a.signed_cmp(&b), Ok(Ordering::Less));
     }
 }

@@ -13,5 +13,6 @@ mod pos;
 mod repr;
 
 pub use bit_width::{BitWidth, Kind};
+pub use ops::{MismatchedBitWidth, Result};
 pub use pos::{BitPos, DigitPos};
-pub use repr::{ApInt, Result};
+pub use repr::ApInt;
