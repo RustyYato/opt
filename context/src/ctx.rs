@@ -218,6 +218,7 @@ fn test() {
         );
 
         let four = ctx.value().intern_i32(4);
-        ctx.const_int(ctx.int_ty_lit(3), four, true).unwrap();
+        ctx.const_int(ctx.int_ty_lit(3), four, false).unwrap();
+        assert!(ctx.const_int(ctx.int_ty_lit(3), four, true).is_none());
     });
 }
